@@ -316,11 +316,100 @@ void AndroidInput::Controller::unbind() {
 
 void AndroidInput::Controller::cancel() {
   controls.resetPointers();
+  padState = PadState();
+  pad.reset();
   }
 
 #ifdef __ANDROID__
+namespace {
+
+bool isPadSource(int32_t source) {
+  return (source & AINPUT_SOURCE_GAMEPAD)==AINPUT_SOURCE_GAMEPAD || (source & AINPUT_SOURCE_DPAD)==AINPUT_SOURCE_DPAD;
+  }
+
+/// The buttons that only a gamepad has; the D-pad is a gamepad's only when the source says so (a keyboard has the arrows too)
+bool padButton(int32_t keyCode, int32_t source, Mobile::Pad& out, int& trigger) {
+  trigger = 0;
+  switch(keyCode) {
+    case AKEYCODE_BUTTON_A:      out = Mobile::Pad::A;           return true;
+    case AKEYCODE_BUTTON_B:      out = Mobile::Pad::B;           return true;
+    case AKEYCODE_BUTTON_X:      out = Mobile::Pad::X;           return true;
+    case AKEYCODE_BUTTON_Y:      out = Mobile::Pad::Y;           return true;
+    case AKEYCODE_BUTTON_L1:     out = Mobile::Pad::LeftBumper;  return true;
+    case AKEYCODE_BUTTON_R1:     out = Mobile::Pad::RightBumper; return true;
+    case AKEYCODE_BUTTON_THUMBL: out = Mobile::Pad::LeftStick;   return true;
+    case AKEYCODE_BUTTON_THUMBR: out = Mobile::Pad::RightStick;  return true;
+    case AKEYCODE_BUTTON_START: out = Mobile::Pad::Start;       return true;
+    case AKEYCODE_BUTTON_SELECT:
+    case AKEYCODE_BUTTON_MODE:   out = Mobile::Pad::Select;      return true;
+    case AKEYCODE_BUTTON_L2:     out = Mobile::Pad::A; trigger = -1; return true;
+    case AKEYCODE_BUTTON_R2:     out = Mobile::Pad::A; trigger = +1; return true;
+    case AKEYCODE_DPAD_UP:       out = Mobile::Pad::DpadUp;      return isPadSource(source);
+    case AKEYCODE_DPAD_DOWN:     out = Mobile::Pad::DpadDown;    return isPadSource(source);
+    case AKEYCODE_DPAD_LEFT:     out = Mobile::Pad::DpadLeft;    return isPadSource(source);
+    case AKEYCODE_DPAD_RIGHT:    out = Mobile::Pad::DpadRight;   return isPadSource(source);
+    default:
+      break;
+    }
+  return false;
+  }
+
+}
+
+void AndroidInput::Controller::pushPadAxes() {
+  const auto& s = padState;
+  pad.axes(s.lx,s.ly,s.rx,s.ry,std::max(s.lt,s.keyLt ? 1.f : 0.f),std::max(s.rt,s.keyRt ? 1.f : 0.f));
+  static const Mobile::Pad dpad[4] = {Mobile::Pad::DpadUp,Mobile::Pad::DpadDown,Mobile::Pad::DpadLeft,Mobile::Pad::DpadRight};
+  for(size_t i=0; i<4; ++i)
+    pad.button(dpad[i],s.dpadKey[i] || s.dpadHat[i]);
+  }
+
+int32_t AndroidInput::Controller::onPadKey(AInputEvent* e) {
+  Mobile::Pad button = Mobile::Pad::A;
+  int         trigger = 0;
+  const int32_t code = AKeyEvent_getKeyCode(e);
+  if(!padButton(code,AInputEvent_getSource(e),button,trigger))
+    return 0;
+
+  const bool down = AKeyEvent_getAction(e)==AKEY_EVENT_ACTION_DOWN;
+  if(AKeyEvent_getRepeatCount(e)!=0)
+    return 1;
+  if(trigger!=0) {
+    (trigger<0 ? padState.keyLt : padState.keyRt) = down;
+    } else
+  if(code==AKEYCODE_DPAD_UP || code==AKEYCODE_DPAD_DOWN || code==AKEYCODE_DPAD_LEFT || code==AKEYCODE_DPAD_RIGHT) {
+    const size_t i = code==AKEYCODE_DPAD_UP ? 0 : code==AKEYCODE_DPAD_DOWN ? 1 : code==AKEYCODE_DPAD_LEFT ? 2 : 3;
+    padState.dpadKey[i] = down;
+    } else {
+    pad.button(button,down);
+    }
+  pushPadAxes();
+  return 1;
+  }
+
+int32_t AndroidInput::Controller::onPadMotion(AInputEvent* e) {
+  if((AMotionEvent_getAction(e) & AMOTION_EVENT_ACTION_MASK)!=AMOTION_EVENT_ACTION_MOVE)
+    return 1;
+  auto axis = [&](int32_t id) { return AMotionEvent_getAxisValue(e,id,0); };
+  auto& s = padState;
+  s.lx = axis(AMOTION_EVENT_AXIS_X);
+  s.ly = axis(AMOTION_EVENT_AXIS_Y);
+  // the right stick of the common pads (Xbox, DualShock/DualSense, Switch) is Z/RZ; RX/RY are the triggers of some of them
+  s.rx = axis(AMOTION_EVENT_AXIS_Z);
+  s.ry = axis(AMOTION_EVENT_AXIS_RZ);
+  s.lt = std::max(axis(AMOTION_EVENT_AXIS_LTRIGGER),axis(AMOTION_EVENT_AXIS_BRAKE));
+  s.rt = std::max(axis(AMOTION_EVENT_AXIS_RTRIGGER),axis(AMOTION_EVENT_AXIS_GAS));
+  const float hx = axis(AMOTION_EVENT_AXIS_HAT_X);
+  const float hy = axis(AMOTION_EVENT_AXIS_HAT_Y);
+  s.dpadHat = {hy<-0.5f, hy>0.5f, hx<-0.5f, hx>0.5f};
+  pushPadAxes();
+  return 1;
+  }
+
 int32_t AndroidInput::Controller::onInput(AInputEvent* e) {
   if(AInputEvent_getType(e)==AINPUT_EVENT_TYPE_KEY) {
+    if(onPadKey(e))
+      return 1;
     const auto key = translate(AKeyEvent_getKeyCode(e));
     if(key==Key::Count)
       return 0;
@@ -330,6 +419,11 @@ int32_t AndroidInput::Controller::onInput(AInputEvent* e) {
     }
   if(AInputEvent_getType(e)!=AINPUT_EVENT_TYPE_MOTION)
     return 0;
+
+  // The sticks and the triggers of a gamepad are motion with axes, not touches: they must never move a pointer
+  const int32_t source = AInputEvent_getSource(e);
+  if((source & AINPUT_SOURCE_JOYSTICK)==AINPUT_SOURCE_JOYSTICK && (source & AINPUT_SOURCE_TOUCHSCREEN)!=AINPUT_SOURCE_TOUCHSCREEN)
+    return onPadMotion(e);
 
   const int32_t action = AMotionEvent_getAction(e);
   const int32_t masked = action & AMOTION_EVENT_ACTION_MASK;
@@ -380,6 +474,7 @@ void AndroidInput::Controller::physical(Mobile::Key key, bool down) {
 void AndroidInput::Controller::applyPreferences() {
   const auto pref = preferences();
   controls.preferences(float(pref.buttons)/100.f,float(pref.deadzone)/100.f,float(pref.sensitivity)/100.f);
+  padSensitivity = float(pref.sensitivity)/100.f;
   }
 
 bool AndroidInput::Controller::update(Window& window, Mobile::Mode mode) {
@@ -394,6 +489,11 @@ bool AndroidInput::Controller::update(Window& window, Mobile::Mode mode) {
     }
 
   controls.tick(Application::tickCount());
+  pad.update(controls,mode,Application::tickCount(),padSensitivity);
+  if(const int step = pad.takeCategoryStep(); step!=0 && action) {
+    const int count = Mobile::CategoryCount;
+    action(Mobile::Special::FirstCategory+(hud.inventoryCategory+step+count)%count);
+    }
   for(const auto& input:controls.drain())
     dispatch(window,mode,input);
   return changed;

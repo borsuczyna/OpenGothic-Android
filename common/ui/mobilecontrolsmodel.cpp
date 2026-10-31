@@ -49,6 +49,23 @@ void Controls::physical(Key key, bool on) {
     release(key);
   }
 
+void Controls::padKey(Key key, bool on) {
+  if(padHeld_[size_t(key)]==on)
+    return;
+  padHeld_[size_t(key)] = on;
+  if(on)
+    acquire(key); else
+    release(key);
+  }
+
+void Controls::padLook(float yaw, float pitch) {
+  events.push_back({Event::Look,Key::Enter,yaw,pitch});
+  }
+
+void Controls::padSpecial(int id) {
+  events.push_back({Event::Special,Key::Enter,0,0,uint32_t(id)});
+  }
+
 void Controls::resetPointers() {
   cancel();
   fingers.clear();
@@ -622,6 +639,7 @@ void Controls::cancel() {
     }
   refs.fill(0);
   physicalHeld.fill(false);
+  padHeld_.fill(false);
   joyHeld.fill(false);
   joyX = joyY = 0;
   joyActive = false;

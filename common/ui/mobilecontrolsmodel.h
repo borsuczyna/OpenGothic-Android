@@ -144,6 +144,15 @@ class Controls {
     void  tick(uint64_t now);
     void  physical(Key key, bool down);
 
+    /// A gamepad (see Gamepad): its keys are counted apart from the keyboard and the fingers, so they do not release each other
+    void  padKey(Key key, bool down);
+    void  padTap(Key key) { pulse(key); }
+    void  padLook(float yaw, float pitch);
+    void  padSpecial(int id);
+    bool  padHeld(Key key) const { return padHeld_[size_t(key)]; }
+    /// The key does something now (the weapon is in the hand, ...): the buttons of the screen hide the others
+    bool  available(Key key) const { return (availableKeys & keyMask(key))!=0; }
+
     std::vector<Event>         drain();
     const std::vector<Button>& buttons() const { return layout; }
     bool  pressed(size_t index) const;
@@ -238,6 +247,7 @@ class Controls {
     std::map<int,Finger>                 fingers;
     std::array<unsigned,size_t(Key::Count)> refs{};
     std::array<bool,size_t(Key::Count)>  physicalHeld{};
+    std::array<bool,size_t(Key::Count)>  padHeld_{};
     std::array<bool,2>                   joyHeld{};
     std::vector<Button>                  layout;
     std::vector<Event>                   events;

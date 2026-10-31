@@ -7,6 +7,7 @@
 #include <functional>
 #include <string>
 
+#include "ui/gamepadmodel.h"
 #include "ui/mobilecontrolsmodel.h"
 
 #ifdef __ANDROID__
@@ -116,7 +117,10 @@ class Controller {
   private:
 #ifdef __ANDROID__
     int32_t onInput(AInputEvent* event);
+    int32_t onPadKey(AInputEvent* event);
+    int32_t onPadMotion(AInputEvent* event);
 #endif
+    void    pushPadAxes();
     void    applyPreferences();
     void    dispatch(Tempest::Window& window, Mobile::Mode mode, const Mobile::Event& input);
     void    onSpecial(int id);
@@ -129,6 +133,14 @@ class Controller {
     void    paintSprite(Tempest::Painter& p, Icon id, const Mobile::Rect& r, float alpha) const;
 
     Mobile::Controls controls;
+    Mobile::Gamepad  pad;
+    // what the gamepad has said last: the sticks and triggers are axes, a pad may also say the triggers and the D-pad as keys
+    struct PadState {
+      float lx = 0, ly = 0, rx = 0, ry = 0, lt = 0, rt = 0;
+      bool  keyLt = false, keyRt = false;
+      std::array<bool,4> dpadKey{}, dpadHat{};   // up, down, left, right
+      } padState;
+    float            padSensitivity = 1;
     bool             paused = false;
 
     std::array<Tempest::Sprite,IconCount> icons;
