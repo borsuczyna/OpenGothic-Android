@@ -276,6 +276,15 @@ void Npc::save(Serialize &fout, size_t id, std::string_view directory) {
     fout.write(uint8_t(1));
     visual.pose().saveModelClock(fout);
     }
+  if(!randomAni.empty()) {
+    fout.setEntry("worlds/",fout.worldName(),directory,id,"/compat-random-ani");
+    fout.write(uint8_t(1),uint32_t(randomAni.size()));
+    for(auto& r:randomAni) {
+      fout.write(r.base,r.freq,uint32_t(r.list.size()));
+      for(auto& i:r.list)
+        fout.write(i);
+      }
+    }
   if(auto* light = owner.script().findSymbol("SPL_LIGHT"); light!=nullptr && light->type()==zenkit::DaedalusDataType::INT) {
     const uint64_t remaining = visual.spellRemainingTime(light->get_int(),owner.tickCount());
     if(remaining>0) {
@@ -368,6 +377,27 @@ void Npc::load(Serialize &fin, size_t id, std::string_view directory) {
     fin.read(version);
     if(version==1)
       fin.read(compatDiveLimit,compatDiveRemaining);
+    }
+
+  randomAni.clear();
+  if(fin.setEntry("worlds/",fin.worldName(),directory,id,"/compat-random-ani")) {
+    uint8_t  version = 0;
+    uint32_t count   = 0;
+    fin.read(version);
+    if(version==1) {
+      fin.read(count);
+      for(uint32_t i=0; i<count && i<64; ++i) {
+        RandomAni r;
+        uint32_t  n = 0;
+        fin.read(r.base,r.freq,n);
+        for(uint32_t j=0; j<n && j<256; ++j) {
+          std::string name;
+          fin.read(name);
+          r.list.push_back(std::move(name));
+          }
+        randomAni.push_back(std::move(r));
+        }
+      }
     }
 
   // post-alignment
@@ -987,6 +1017,7 @@ void Npc::setVisual(const Skeleton* v) {
     return;
   visual.setVisual(v);
   visual.clearOverlays();
+  randomAni.clear();   // they belong to the model
   invalidateTalentOverlays();
   }
 
@@ -1110,6 +1141,82 @@ void Npc::setScale(float x, float y, float z) {
 
 const Animation::Sequence* Npc::playAnimByName(std::string_view name, BodyState bs) {
   return visual.startAnimAndGet(*this,name,calcAniComb(),bs);
+  }
+
+static std::string upperName(std::string_view name) {
+  std::string ret(name);
+  for(auto& c:ret)
+    c = char(std::toupper(static_cast<unsigned char>(c)));
+  return ret;
+  }
+
+void Npc::setRandomAni(std::string_view base, std::string_view ani) {
+  if(base.empty() || ani.empty())
+    return;
+  const std::string b = upperName(base), a = upperName(ani);
+  auto it = std::find_if(randomAni.begin(),randomAni.end(),[&b](const RandomAni& r){ return r.base==b; });
+  if(it==randomAni.end()) {
+    randomAni.emplace_back();
+    randomAni.back().base = b;
+    it = randomAni.end()-1;
+    }
+  if(std::find(it->list.begin(),it->list.end(),a)==it->list.end())
+    it->list.push_back(a);
+  }
+
+void Npc::setRandomAniFreq(std::string_view base, float seconds) {
+  if(base.empty() || !std::isfinite(seconds) || seconds<=0.f)
+    return;
+  const std::string b = upperName(base);
+  auto it = std::find_if(randomAni.begin(),randomAni.end(),[&b](const RandomAni& r){ return r.base==b; });
+  if(it==randomAni.end()) {
+    randomAni.emplace_back();
+    randomAni.back().base = b;
+    it = randomAni.end()-1;
+    }
+  it->freq   = seconds;
+  it->nextAt = 0;
+  }
+
+void Npc::tickRandomAni() {
+  const uint64_t now = owner.tickCount();
+  const auto&    pose = visual.pose();
+
+  for(auto& r:randomAni) {
+    if(!r.playing.empty()) {
+      if(pose.isInAnim(r.playing))
+        continue;
+      // it has ended: the 'next' of the animation leads back to the base one
+      r.playing.clear();
+      r.nextAt = 0;
+      }
+
+    if(r.list.empty() || !pose.isInAnim(r.base)) {
+      r.nextAt = 0;
+      continue;
+      }
+
+    if(r.nextAt==0) {
+      // between half and one and a half of the frequency
+      const uint64_t span = uint64_t(double(r.freq)*1000.0);
+      r.nextAt = now + span/2 + owner.script().rand(uint32_t(std::min<uint64_t>(span+1,UINT32_MAX)));
+      continue;
+      }
+    if(now<r.nextAt)
+      continue;
+    r.nextAt = 0;
+
+    // only the animations that lead back to the base one: otherwise the character would be left in a pose that nobody ends
+    const std::string& pick = r.list[owner.script().rand(uint32_t(r.list.size()))];
+    const auto* sq = visual.findAnim(pick);
+    if(sq==nullptr || sq->next!=r.base) {
+      Log::d("random animation ",pick," of ",r.base," is not played: ",sq==nullptr ? "there is no such animation" : "it does not lead back");
+      r.list.erase(r.list.begin()+(&pick-r.list.data()));
+      continue;
+      }
+    if(playAnimByName(pick,BS_NONE)!=nullptr)
+      r.playing = pick;
+    }
   }
 
 bool Npc::setAnim(Npc::Anim a) {
@@ -2823,6 +2930,9 @@ void Npc::tick(uint64_t dt) {
     tickPuppet(dt);
     return;
     }
+
+  if(!randomAni.empty() && !isDead())
+    tickRandomAni();
 
   if(compatDiveLimit>=0) {
     // Gothic counts remaining milliseconds down under water, and refills them

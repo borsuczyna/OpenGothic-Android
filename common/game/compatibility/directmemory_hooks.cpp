@@ -22,6 +22,8 @@ bool DirectMemory::isHookAnswered(uint32_t address) {
     HookAdr::ChangeLevelEnd,
     HookAdr::WriteSavegame,
     HookAdr::SaveGameWorld,
+    HookAdr::SaveWorldName,
+    HookAdr::LoadingTexture,
     HookAdr::ReadSavegame,
     HookAdr::InventoryInsert,
     HookAdr::ChangeAttribute,

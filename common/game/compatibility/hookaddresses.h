@@ -16,6 +16,8 @@ namespace HookAdr {
   constexpr uint32_t ChangeLevelEnd         = 0x6C7ACB; // end of oCGame::ChangeLevel
   constexpr uint32_t WriteSavegame          = 0x439105; // oCSavegameManager::SetAndWriteSavegame
   constexpr uint32_t SaveGameWorld          = 0x6C5250; // CoM torch state before world/Daedalus serialization
+  constexpr uint32_t LoadingTexture         = 0x42A2D0; // before a loading screen: the hook writes the name of the picture to the text at 0x8B3D84
+  constexpr uint32_t SaveWorldName          = 0x437D9F; // the header of a save: the hook writes the name of the area to the zSTRING at [ebp+84]
   constexpr uint32_t ReadSavegame           = 0x42A040; // CGameManager::Read_Savegame, [esp+4] is the slot
   constexpr uint32_t SpriteRender           = 0x64DF20;
   constexpr uint32_t GameRender             = 0x6C8800; // LeGo Render item/view previews

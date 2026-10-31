@@ -53,5 +53,14 @@ For selected functions, instances or prototypes:
 python tools/ikarus/disasm.py build/archolos-input/GOTHIC.DAT MEM_WRITESTRING DEFAULTMUSIC VIL
 ```
 
+To see which classes of vobs the scripts search by name (the compatibility layer mirrors only the movers):
+
+```powershell
+python -I tools/ikarus/vobnames.py --mod C:/Sources/tcom/Source --worlds C:/Work/worlds
+```
+
+The constant names are taken from the source of the scripts and the class from the nearest class header of the
+binary ZEN; a name with no mover in any world is listed. A dynamic name (a variable) is only reported by its caller.
+
 This is an audit front end and bytecode disassembler, not a Daedalus-to-C++ compiler.
 Passing the audit cannot certify that the whole campaign works or cannot crash.

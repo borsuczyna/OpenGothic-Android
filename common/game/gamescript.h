@@ -91,6 +91,9 @@ class GameScript final {
     void         dmaChangeLevel(bool begin);
     void         dmaSave(Serialize& fout);
     void         dmaBeforeSave();
+    auto         dmaSaveWorldName(std::string_view fallback) -> std::string;
+    /// The picture of the next loading screen that the scripts choose (CoM: LOA_01..26), empty if they do not
+    auto         dmaLoadingTexture() -> std::string;
     void         dmaLoad(Serialize& fin);
     void         dmaItemTaken(Npc& owner, Item& item);
     int          dmaChangeAttribute(Npc& npc, int attribute, int change);

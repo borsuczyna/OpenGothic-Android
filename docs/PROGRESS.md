@@ -1,5 +1,11 @@
 # Postęp: Kroniki Myrtany / Ikarus / LeGo
 
+Przekazanie kontekstu 26.10.2026: [handoff dla Claude](C:/Users/Ernest/Desktop/opengothic/docs/ARCHOLOS_HANDOFF_CLAUDE_2026-10-26.md). Poniższa lista implementacji i odbioru pozostaje snapshotem z 24.10; przygotowanie handoffu nie podnosi postępu.
+
+Aktualizacja 26.10.2026 (przegląd statyczny, bez uruchamiania gry): licznik 24/27 bez zmian — to nadal liczba pozycji
+listy, nie procent zgodności. Nowe: [ARCHOLOS_BLOCKERS_2026-10-26.md](ARCHOLOS_BLOCKERS_2026-10-26.md), narzędzie
+`tools/ikarus/vobnames.py`, hook nazwy obszaru w nagłówku zapisu (do odbioru: nazwy w slotach zapisu w różnych strefach).
+
 Stan bieżący: 24.10.2026. Poprzedni raport zachowany w [PROGRESS_2026-10-20_ARCHIVE.md](PROGRESS_2026-10-20_ARCHIVE.md).
 
 # Kroniki: bieżąca lista prac
@@ -33,8 +39,11 @@ panelu craftingu po pakiecie naprawczym.
 - [x] Przegląd CATINV i natywna adaptacja masek/stanu kategorii ekwipunku.
 - [x] Sprite'y map LeGo, Render modeli i wybór podglądu receptury w craftingu.
 - [x] Synchronizacja TRIA_FINISH przed zmianą rutyn/zamknięciem dialogu Q102.
-- [ ] Pozostałe hooki Kronik: kontrakty zdarzeń, rejestrów i stosu.
-- [ ] Pozostałe wywołania natywne/dynamiczne: implementacje i działające zamienniki.
+- [ ] Pozostałe hooki Kronik: kontrakty zdarzeń, rejestrów i stosu. 26.10: wszystkie 40 hooków i 29 adresów przejrzane
+  statycznie w [ARCHOLOS_BLOCKERS_2026-10-26.md](ARCHOLOS_BLOCKERS_2026-10-26.md) — brak nieobsłużonego skutku fabularnego;
+  zaimplementowano PATCHSAVEGAMEWORLD (nazwa obszaru w nagłówku zapisu). Pozycja zostaje otwarta do odbioru w grze.
+- [ ] Pozostałe wywołania natywne/dynamiczne: implementacje i działające zamienniki. 26.10: 39 callbacków dynamicznych to
+  wrappery bibliotek; `MEM_SearchVobByName` pokryte (465/476 nazw to movery); RandomAni w kodzie (do odbioru); otwarte zostają KmLib i PermMem.
 - [x] Kompilacje pakietów i poprawki kompilatora; oba EXE zlinkowane.
 - [ ] Ręczne próby zmian i weryfikacja kampanii.
 
@@ -241,7 +250,8 @@ panelu craftingu mają osobne potwierdzenie użytkownika.
 - [ ] Pozostałe flagi OCNPC.BITFIELD: skutki zapisów dla realnego obiektu i trwałość.
 - [ ] WLD_ISRAINING: wciąż false; 5 miejsc DAT, powitania/zaklęcia/staruszek NS06.
   Wymaga spójnego systemu pogody, którego renderer obecnie nie posiada.
-- [ ] MDL_APPLYRANDOMANI/FREQ: wciąż atrapy, 3+1 miejsca ZS_MM_RTN_EATGROUND.
+- [x] MDL_APPLYRANDOMANI/FREQ (26.10): w kodzie, 3+1 miejsca ZS_MM_RTN_EATGROUND. Zegar per NPC w `Npc::tickRandomAni`,
+  gra tylko animacje, których `next` wraca do bazowej (S_EAT), zapis w `compat-random-ani`. Do odbioru w grze.
 - [x] Zweryfikowano istniejący adapter _AI_TeleportAlways: realny NPC/WP
   w callbacku LeGo; 95 miejsc AI_TELEPORTALWAYS w 53 funkcjach DAT.
 - [ ] Potrzebne ścieżki waynetu i list vobów; nie pełna emulacja silnika na zapas.
@@ -276,8 +286,10 @@ panelu craftingu mają osobne potwierdzenie użytkownika.
   MDL_SetVisualBody również nie przełącza już założonej zbroi. 0 zachowuje zbroję.
 - [ ] Wyposażenie: warunki, idempotencja, kołczany, pochodnie, ręce, transfer/ostatnia sztuka.
 - [ ] Dom: wzory ścian i odtworzenie po loadzie.
-- [ ] Ustawienia zasięgu/skalowania, alternatywne loadingi i metadane zapisów.
-- [ ] Diagnostyka/konsola/schowek/telemetria; niższy priorytet od fabuły i zapisu.
+- [ ] Ustawienia zasięgu/skalowania, alternatywne loadingi i metadane zapisów. 26.10: nazwa obszaru w nagłówku zapisu
+  (PATCHSAVEGAMEWORLD) i losowe ekrany ładowania `LOA_*` w kodzie — do odbioru; wersja zapisu i skalowanie widoczności bez zmian.
+- [ ] Diagnostyka/konsola/schowek/telemetria; niższy priorytet od fabuły i zapisu. 26.10: schowek i `WriteToClipboard`
+  mają 0 wywołań w DAT, telemetria to puste funkcje, `_CC_Hook` to tylko konsola.
 - [x] Okresowe buildy i poprawki kompilatora; oba EXE zlinkowane, logi zachowane.
 - [x] Po STOP końcowy build aktualnego stanu kodem 0 i lista odbioru.
   Nowe prace zatrzymane na polecenie użytkownika; kampania nadal niezweryfikowana.

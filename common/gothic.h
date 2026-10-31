@@ -149,6 +149,8 @@ class Gothic final {
     /// why the last loading or saving failed; valid after checkLoading() returned FailedLoad or FailedSave
     const std::string& loadError() const { return loadFailure; }
     bool         finishLoading();
+    /// The picture of a loading screen: the one that the scripts of the mod choose (CoM) if the game has it, otherwise `fallback`
+    static std::string loadingBannerName(GameScript* script, std::string_view fallback);
     void         startLoad(std::string_view banner, const std::function<std::unique_ptr<GameSession>(std::unique_ptr<GameSession>&&)> f);
     void         startSave(Tempest::Texture2d&& tex, const std::function<std::unique_ptr<GameSession>(std::unique_ptr<GameSession>&&)> f);
     void         cancelLoading();

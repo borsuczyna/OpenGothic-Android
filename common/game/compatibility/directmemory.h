@@ -54,6 +54,8 @@ class DirectMemory {
     void        eventChangeLevel(bool begin);
     void        eventSaveGame(Serialize& fout);
     void        eventBeforeSaveGame();
+    auto        saveWorldName(std::string_view fallback) -> std::string;
+    auto        loadingTexture() -> std::string;
     void        eventLoadGame(Serialize& fin);
     void        eventItemTaken(Npc& owner, Item& item);
     int         eventChangeAttribute(Npc& npc, int attribute, int change);
@@ -388,6 +390,7 @@ class DirectMemory {
     std::unordered_map<uint32_t,VirtualHandle>  vhandles;
     uint32_t                                    nextVHandle = 0x1000;
     uint32_t                                    lastError   = 0;
+    bool                                        loadingTextureReady = false;
     ptr32_t                                     saveSlotBlock = 0;
     void        setupFileFunctions();
     void        setupSaveSupport();

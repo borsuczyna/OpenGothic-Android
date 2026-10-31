@@ -178,6 +178,7 @@ class Npc final {
     WalkBit    walkMode() const;
     void       tick(uint64_t dt);
     void       tickAnimationTags();
+    void       tickRandomAni();
     bool       startClimb(JumpStatus jump);
 
     auto       world() -> World&;
@@ -449,6 +450,11 @@ class Npc final {
     bool      isRotationAllowed() const;
     auto      playAnimByName(std::string_view name, BodyState bs) -> const Animation::Sequence*;
 
+    /// Mdl_ApplyRandomAni / Mdl_ApplyRandomAniFreq: while the animation `base` plays, one of its random animations
+    /// is started from time to time (the average distance is `seconds`); they have to lead back to `base`.
+    void      setRandomAni(std::string_view base, std::string_view ani);
+    void      setRandomAniFreq(std::string_view base, float seconds);
+
     bool      checkGoToNpcdistance(const Npc& other);
 
     bool      isAiQueueEmpty() const;
@@ -653,6 +659,15 @@ class Npc final {
     bool                           walkStopChasmEnabled     =true;
     int32_t                        compatDiveLimit          =-1;
     int32_t                        compatDiveRemaining      =0;
+
+    struct RandomAni {
+      std::string              base;                 // upper case name of the animation that the random ones belong to
+      std::vector<std::string> list;                 // upper case names
+      float                    freq    = 1.f;        // seconds
+      std::string              playing;              // the random animation that runs now
+      uint64_t                 nextAt  = 0;          // 0: not planned (the base animation does not play)
+      };
+    std::vector<RandomAni>         randomAni;
     int32_t                        trGuild                 =GIL_NONE;
     int32_t                        talentsSk[TALENT_MAX_G2]={};
     int32_t                        talentsVl[TALENT_MAX_G2]={};

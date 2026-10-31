@@ -518,6 +518,19 @@ void Gothic::startSave(Tempest::Texture2d&& tex,
   implStartLoadSave("",false,f);
   }
 
+std::string Gothic::loadingBannerName(GameScript* script, std::string_view fallback) {
+  std::string alt = script==nullptr ? std::string() : script->dmaLoadingTexture();
+  for(auto& c:alt)
+    c = char(std::toupper(static_cast<unsigned char>(c)));
+  if(alt.size()>4 && alt.compare(alt.size()-4,4,".TGA")==0) {
+    // the pictures of the mods are compiled textures
+    const std::string tex = alt.substr(0,alt.size()-4)+"-C.TEX";
+    if(Resources::hasFile(tex) || Resources::hasFile(alt))
+      return alt;
+    }
+  return std::string(fallback);
+  }
+
 void Gothic::startLoad(std::string_view banner,
                        const std::function<std::unique_ptr<GameSession>(std::unique_ptr<GameSession>&&)> f) {
   implStartLoadSave(banner,true,f);

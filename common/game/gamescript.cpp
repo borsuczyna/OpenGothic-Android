@@ -134,6 +134,14 @@ void GameScript::dmaBeforeSave() {
     dma->eventBeforeSaveGame();
   }
 
+auto GameScript::dmaSaveWorldName(std::string_view fallback) -> std::string {
+  return dma==nullptr ? std::string(fallback) : dma->saveWorldName(fallback);
+  }
+
+auto GameScript::dmaLoadingTexture() -> std::string {
+  return dma==nullptr ? std::string() : dma->loadingTexture();
+  }
+
 void GameScript::dmaLoad(Serialize& fin) {
   if(dma!=nullptr)
     dma->eventLoadGame(fin);
@@ -2333,28 +2341,14 @@ void GameScript::mdl_startfaceani(std::shared_ptr<zenkit::INpc> npcRef, std::str
     findNpc(npcRef.get())->startFaceAnim(ani,intensity,uint64_t(time*1000.f));
   }
 
-void GameScript::mdl_applyrandomani(std::shared_ptr<zenkit::INpc> npcRef, std::string_view s1, std::string_view s0) {
-  (void)npcRef;
-  (void)s1;
-  (void)s0;
-
-  static bool first=true;
-  if(first){
-    Log::e("not implemented call [mdl_applyrandomani]");
-    first=false;
-    }
+void GameScript::mdl_applyrandomani(std::shared_ptr<zenkit::INpc> npcRef, std::string_view baseAni, std::string_view randomAni) {
+  if(auto npc = findNpc(npcRef))
+    npc->setRandomAni(baseAni,randomAni);
   }
 
-void GameScript::mdl_applyrandomanifreq(std::shared_ptr<zenkit::INpc> npcRef, std::string_view s1, float f0) {
-  (void)f0;
-  (void)s1;
-  (void)npcRef;
-
-  static bool first=true;
-  if(first){
-    Log::e("not implemented call [mdl_applyrandomanifreq]");
-    first=false;
-    }
+void GameScript::mdl_applyrandomanifreq(std::shared_ptr<zenkit::INpc> npcRef, std::string_view baseAni, float seconds) {
+  if(auto npc = findNpc(npcRef))
+    npc->setRandomAniFreq(baseAni,seconds);
   }
 
 void GameScript::mdl_applyrandomfaceani(std::shared_ptr<zenkit::INpc> npcRef, std::string_view name, float timeMin, float timeMinVar, float timeMax, float timeMaxVar, float probMin) {

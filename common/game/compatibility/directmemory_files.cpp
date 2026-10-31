@@ -219,6 +219,62 @@ void DirectMemory::eventBeforeSaveGame() {
   fireHook(HookAdr::SaveGameWorld,regs);
   }
 
+/// The name of the world in the header of a save and in the list of the slots: CoM writes the name of the area there
+/// (PATCHSAVEGAMEWORLD_HOOK), an empty answer of the scripts leaves the world of the engine.
+auto DirectMemory::saveWorldName(std::string_view fallback) -> std::string {
+  std::string ret{fallback};
+  if(!hasHook(HookAdr::SaveWorldName))
+    return ret;
+
+  // oCSavegameManager::SetAndWriteSavegame keeps the zSTRING of the world in [ebp+84]
+  const ptr32_t frame = mem32.alloc(256,"frame of the name of the world");
+  if(frame==0)
+    return ret;
+  HookRegs r;
+  r.ebp = frame;
+  fireHook(HookAdr::SaveWorldName,r);
+
+  if(auto* s = mem32.deref<zString>(frame+84)) {
+    std::string name;
+    memFromString(name,*s);
+    if(!name.empty())
+      ret = std::move(name);
+    mem32.free(s->ptr);
+    }
+  mem32.free(frame);
+  return ret;
+  }
+
+/// The alternative loading screens of CoM (INITALTERNATIVELOADINGSCREENS): the hook writes the name of a picture into the text of
+/// the engine where the loading screen reads it. Here the text is a piece of the pretended memory at the same address.
+auto DirectMemory::loadingTexture() -> std::string {
+  if(!hasHook(HookAdr::LoadingTexture))
+    return {};
+
+  const ptr32_t LOADINGTEXNAME = 9118980;
+  const uint32_t size = 64;
+  if(!loadingTextureReady) {
+    try {
+      mem32.alloc(LOADINGTEXNAME,size,"name of the loading picture");
+      loadingTextureReady = true;
+      }
+    catch(const std::exception&) {
+      if(logBudget("loading-texture-alloc"))
+        Log::e("DMA: the text of the loading picture cannot be placed at ",reinterpret_cast<void*>(uint64_t(LOADINGTEXNAME)));
+      return {};
+      }
+    }
+
+  HookRegs r;
+  fireHook(HookAdr::LoadingTexture,r);
+
+  auto [ptr, avail] = mem32.deref(LOADINGTEXNAME);
+  if(ptr==nullptr)
+    return {};
+  const char* txt = reinterpret_cast<const char*>(ptr);
+  return std::string(txt,strnlen(txt,std::min<size_t>(size_t(avail),size)));
+  }
+
 void DirectMemory::eventSaveGame(Serialize& fout) {
   for(auto& f:vfs)
     dumpFile("saved",f.first,f.second);

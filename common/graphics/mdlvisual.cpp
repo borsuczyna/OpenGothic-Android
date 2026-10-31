@@ -677,6 +677,10 @@ bool MdlVisual::hasAnim(std::string_view scheme) const {
   return solver.solveFrm(scheme)!=nullptr;
   }
 
+const Animation::Sequence* MdlVisual::findAnim(std::string_view name) const {
+  return solver.solveFrm(name);
+  }
+
 bool MdlVisual::hasAnim(AnimationSolver::Anim a, WeaponState st, WalkBit wlk) const {
   return solver.solveAnim(a,st,wlk,*skInst)!=nullptr;
   }

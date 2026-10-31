@@ -1361,13 +1361,15 @@ Camera::Mode MainWindow::solveCameraMode() const {
   }
 
 void MainWindow::startGame(std::string_view slot) {
+  // before the old game is dropped: the scripts of the mod choose the picture
+  const std::string banner = Gothic::loadingBannerName(Gothic::inst().world()!=nullptr ? &Gothic::inst().world()->script() : nullptr,"LOADING.TGA");
   // gothic.emitGlobalSound(gothic.loadSoundFx("NEWGAME"));
 
   if(Gothic::inst().checkLoading()==Gothic::LoadState::Idle){
     setGameImpl(nullptr);
     }
 
-  Gothic::inst().startLoad("LOADING.TGA",[slot=std::string(slot)](std::unique_ptr<GameSession>&& game){
+  Gothic::inst().startLoad(banner,[slot=std::string(slot)](std::unique_ptr<GameSession>&& game){
     game = nullptr; // clear world-memory now
     std::unique_ptr<GameSession> w(new GameSession(slot));
     return w;
@@ -1378,6 +1380,8 @@ void MainWindow::startGame(std::string_view slot) {
   }
 
 void MainWindow::loadGame(std::string_view slot) {
+  // before the old game is dropped: the scripts of the mod choose the picture
+  const std::string banner = Gothic::loadingBannerName(Gothic::inst().world()!=nullptr ? &Gothic::inst().world()->script() : nullptr,"LOADING.TGA");
   if(auto* w = Gothic::inst().world(); w!=nullptr && w->script().dmaLoadDisabled()) {
     Log::i("The scripts of the mod do not allow loading now (ENABLELOADGAME)");
     return;
@@ -1387,7 +1391,7 @@ void MainWindow::loadGame(std::string_view slot) {
     }
 
   Gothic::inst().setBenchmarkMode(Benchmark::None);
-  Gothic::inst().startLoad("LOADING.TGA",[slot=std::string(slot)](std::unique_ptr<GameSession>&& game){
+  Gothic::inst().startLoad(banner,[slot=std::string(slot)](std::unique_ptr<GameSession>&& game){
     game = nullptr; // clear world-memory now
     try {
       Tempest::RFile file(slot);

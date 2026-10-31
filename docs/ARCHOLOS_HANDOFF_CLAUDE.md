@@ -1,3 +1,5 @@
+> **Archiwum z 20.10.2026. Aktualny handoff z 26.10.2026:** [ARCHOLOS_HANDOFF_CLAUDE_2026-10-26.md](C:/Users/Ernest/Desktop/opengothic/docs/ARCHOLOS_HANDOFF_CLAUDE_2026-10-26.md). Poniższe opisy braków, HEAD, niecommitowanych zmian, OTHER i ASCII są historyczne; nie stosuj ich zamiast aktualnego kodu i nowego handoffu.
+
 # Handoff dla Claude: Kroniki Myrtany w OpenGothic
 
 Stan przekazania: **20.10.2026**, po potwierdzeniu użytkownika „oba działają”, odnoszącym się do ostatnio przygotowywanych prób strzelania i sceny palaczy. To lista wykonanej pracy i wszystkich znanych pozostałych obszarów z audytu. Pełna przechodniość Kronik nie została jeszcze potwierdzona.
