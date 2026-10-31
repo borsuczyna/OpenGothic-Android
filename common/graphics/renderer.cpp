@@ -11,6 +11,7 @@
 #include "ui/videowidget.h"
 #include "camera.h"
 #include "gothic.h"
+#include "safegpu.h"
 #include "utils/androidinput.h"
 #include "utils/string_frm.h"
 
@@ -699,8 +700,10 @@ void Renderer::draw(Tempest::Attachment& result, Encoder<CommandBuffer>& cmd, ui
   wview.visibilityPass(cmd, 0);
   prepareSky(cmd, wview);
 
-  drawHiZ (cmd, wview);
-  buildHiZ(cmd);
+  if(!SafeGpu::noHiZ()) {
+    drawHiZ (cmd, wview);
+    buildHiZ(cmd);
+    }
 
   wview.visibilityPass(cmd, 1);
   drawGBuffer(cmd, fId, wview);

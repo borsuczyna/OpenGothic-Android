@@ -126,6 +126,8 @@ add_shader(cluster_patch.comp           materials/cluster_patch.comp)
 add_shader(visibility_pass.comp         materials/visibility_pass.comp)
 add_shader(visibility_pass_hiz.comp     materials/visibility_pass.comp -DMAIN_VIEW -DHIZ)
 add_shader(visibility_pass_hiz_cr.comp  materials/visibility_pass.comp -DMAIN_VIEW -DHIZ -DLARGE)
+# the main view without the test of HiZ: the driver died in the build of HiZ (safe GPU mode, SafeGpu::noHiZ)
+add_shader(visibility_pass_main.comp    materials/visibility_pass.comp -DMAIN_VIEW)
 
 # mesh & vertex
 add_geom_shader(main_lnd       "-DMESH_TYPE=0" -DFLAT_NORMAL)

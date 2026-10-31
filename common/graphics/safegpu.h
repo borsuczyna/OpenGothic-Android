@@ -32,6 +32,10 @@ class SafeGpu final {
     static bool  isSafe()    { return level()>=Safe;    }
     static bool  isMinimal() { return level()>=Minimal; }
 
+    /// the driver died in the build of HiZ (a command of the dispatch, not the compiler: no lock, but the crash.log of the previous start names
+    /// Renderer::buildHiZ): the occluders and the pyramid are not made, the main view is culled without the test of HiZ (a bit more is drawn)
+    static bool  noHiZ();
+
     /// the shader that is going to be compiled by the driver now; the name stays in the lock if the driver kills the process
     static void  trace(std::string_view shader);
 

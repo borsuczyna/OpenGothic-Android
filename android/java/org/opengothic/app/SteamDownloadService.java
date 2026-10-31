@@ -151,13 +151,6 @@ public final class SteamDownloadService extends Service {
             File game = installationIn(part);
             if (game == null)
                 throw new SteamSession.Failure("The files of the game are not what was expected (no Data, _work and System).", false);
-            // a download that finished with archives that are empty is not an installation: the next try must not resume into it
-            java.util.List<String> broken = GameFiles.brokenArchives(game);
-            if (!broken.isEmpty()) {
-                remove(part);
-                throw new SteamSession.Failure("The downloaded files are damaged (" + broken.size() + " archives, for example " + broken.get(0)
-                        + "). They were removed, download the game again.", false);
-            }
             remove(new File(game, ".DepotDownloader"));
             File target = new File(external, folder);
             if (target.exists())

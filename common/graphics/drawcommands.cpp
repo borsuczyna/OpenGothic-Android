@@ -267,6 +267,8 @@ void DrawCommands::visibilityPass(Encoder<CommandBuffer>& cmd, int pass) {
 
   for(uint8_t v=0; v<SceneGlobals::V_Count; ++v) {
     const auto viewport = SceneGlobals::VisCamera(v);
+    if(viewport==SceneGlobals::V_HiZ && SafeGpu::noHiZ())
+      continue;   // no occluders, no pyramid: the main view is not tested against it
     if(viewport==SceneGlobals::V_HiZ && pass!=0)
       continue;
     if(viewport!=SceneGlobals::V_HiZ && pass==0)
@@ -311,7 +313,7 @@ void DrawCommands::visibilityPass(Encoder<CommandBuffer>& cmd, int pass) {
 
     auto* pso = &Shaders::inst().visibilityPassSh;
     if(viewport==SceneGlobals::V_Main)
-      pso = &Shaders::inst().visibilityPassHiZ;
+      pso = SafeGpu::noHiZ() ? &Shaders::inst().visibilityPassMain : &Shaders::inst().visibilityPassHiZ;
     else if(viewport==SceneGlobals::V_HiZ)
       pso = &Shaders::inst().visibilityPassHiZCr;
 

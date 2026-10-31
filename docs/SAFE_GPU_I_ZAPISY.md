@@ -130,3 +130,28 @@ niebo, post-efekty): struktura varyingów z `vec3`, dwa wyjścia koloru (w tym `
 na urządzeniu**, która z tych zmian jest przyczyną.
 
 Tryb Safe GPU nic tu nie zmienia, bo nie ma czego pominąć: G-buffer jest potrzebny. Poziom 1 i 2 tylko pomijają HiZ.
+
+### Sześć logów z 31.10.2026 (`Desktop/logs`): wszystkie sprzed poprawek `3cf285c1` i `96ddb583`
+
+| Raport | Wersja | GPU | Miejsce awarii |
+| --- | --- | --- | --- |
+| `opengothic-discord-raport-1` | 0.8.3 | Adreno 619 (G1) | `vkCreateGraphicsPipelines`, `main.vert [MESH_TYPE=0 FLAT_NORMAL]` + `main.frag [FLAT_NORMAL GBUFFER SIMPLE_MAT]` |
+| `OpenGothic log (1)` | 0.8.3 | Adreno 710 (G2) | `main.vert [MESH_TYPE=1]` + `main.frag [GBUFFER]` |
+| `OpenGothic logi` | 0.8.3 | Adreno 610 (G1) | `main.vert [MESH_TYPE=3 BINDLESS]` + `main.frag [GBUFFER BINDLESS]`; w logu też `[MESH_TYPE=2] [GBUFFER]` |
+| `GOTHIC LOG.pdf` | 0.8.3 | Adreno 660 (G2) | ten sam stos `CreateQGLCShader` w `vkCreateGraphicsPipelines` |
+| `GothicLog` | 0.8.3 | Adreno 618 (G2) | **nie kompilator**: `vkCmdDispatch` w `Renderer::buildHiZ`, już w poziomie 2 |
+| `gothic2` | 0.8.4 | Mali-G720 (G2) | zamknięcie procesu: `~Resources` → `zenkit::Vfs::~Vfs` (po normalnej rozgrywce) |
+
+- Pięć logów z Adreno to 0.8.3, czyli **przed** zmianami shadera G-buffera (`3cf285c1`, `96ddb583`). Nic w nich nie obala tych poprawek, ale też ich
+  nie potwierdza. Do sprawdzenia potrzebny jest nowy APK (0.8.4 ma obie zmiany) na tych samych urządzeniach.
+- Mali: crash przy zamykaniu, naprawiony w `7ba334d2` (`std::_Exit` po opróżnieniu logu); log 0.8.4 jest sprzed tej zmiany.
+- Adreno 618 pokazuje lukę trybu Safe: blokada (`safegpu.lock`) pilnuje tylko kompilacji pipeline'ów, a awaria w rozkazie `vkCmdDispatch` budowy HiZ jej
+  nie zostawia. Poziom 2 pomija tylko rysowanie okluderów, ale budował piramidę HiZ, więc gra padała w kółko.
+
+**Zmiana (31.10):** `SafeGpu::noHiZ()`. Przy starcie `safegpu.cpp` czyta `crash.log`; jeśli zawiera `buildHiZ` i `GPU: <nazwa tego GPU>`, zapisuje `nohiz=1`
+w `safegpu.mode`. Wtedy `Renderer` nie rysuje okluderów ani nie buduje piramidy, `DrawCommands` pomija widok `V_HiZ`, a widok główny używa nowego shadera
+`visibility_pass_main.comp` (`-DMAIN_VIEW`, bez testu HiZ). Efekt: nieco więcej rysowania, ale bez rozkazu, który zabijał sterownik. `-safegpu off` wyłącza to na
+jedno uruchomienie, usunięcie `safegpu.mode` kasuje decyzję (crash.log nadal ją odtworzy, jeśli awaria była w HiZ). **Nie potwierdzono na urządzeniu.**
+
+Nie zmieniałem shaderów G-buffera po raz trzeci: bez urządzenia z Adreno każda kolejna zmiana byłaby zgadywaniem. Jeśli nowy APK nadal padnie w `main.frag [GBUFFER]`,
+kolejnym krokiem jest wariant G-buffera bez wyjścia `uint` (R32U) i bez osobnych wariantów vertex, wybierany z poziomu trybu Safe po kolejnej awarii.

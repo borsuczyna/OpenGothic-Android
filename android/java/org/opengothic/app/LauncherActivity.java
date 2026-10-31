@@ -112,8 +112,6 @@ public final class LauncherActivity extends Activity {
     private TextView updateButton;
     private boolean updateAvailable;
     private UpdateCheck.Release updateRelease;
-    // the result of GameFiles.brokenArchives for every game and when it was made: reading the headers of the archives is not for every refresh
-    private final java.util.Map<Integer, Object[]> integrity = new java.util.HashMap<>();
 
     private File external;
     private int lastPlayed = 1;
@@ -662,18 +660,6 @@ public final class LauncherActivity extends Activity {
                 && new File(dir, "System").isDirectory();
     }
 
-    /** The archives of an installed game that are empty or damaged (names), none when the installation is good. */
-    @SuppressWarnings("unchecked")
-    private List<String> brokenArchives(int game) {
-        long now = System.currentTimeMillis();
-        Object[] known = integrity.get(game);
-        if (known != null && now - (Long) known[0] < 10000)
-            return (List<String>) known[1];
-        List<String> broken = GameFiles.brokenArchives(rootOf(game));
-        integrity.put(game, new Object[] {now, broken});
-        return broken;
-    }
-
     private boolean canDownload(int game) {
         return session != null && owned != null && owned.contains(GAMES[game].appId) && SteamBridge.available();
     }
@@ -739,11 +725,6 @@ public final class LauncherActivity extends Activity {
             } else if (importingThis) {
                 setChip(c, importText, 0x33c9a24a, 0xffe7c873);
                 setPrimary(c, "...", false, false);
-            } else if (installed && !brokenArchives(i).isEmpty()) {
-                setChip(c, "!  " + Texts.t("Damaged files", "Uszkodzone pliki"), 0x33a33a2a, 0xffe29a8c);
-                c.error.setText(Texts.t(brokenArchives(i).size() + " archives of the game are empty or incomplete.",
-                        brokenArchives(i).size() + " archiwów gry jest pustych lub niepełnych."));
-                setPrimary(c, Texts.t("Repair", "Napraw"), true, !working);
             } else if (installed) {
                 setChip(c, "✓  " + Texts.t("Installed", "Zainstalowane"), 0x331f7a4a, 0xff7fe0a0);
                 setPrimary(c, "▶  " + Texts.t("Play", "Graj"), true, !working);
@@ -784,37 +765,13 @@ public final class LauncherActivity extends Activity {
             return;
         }
         if (isInstallation(rootOf(game))) {
-            integrity.remove(game);
-            List<String> broken = brokenArchives(game);
-            if (broken.isEmpty())
-                play(game);
-            else
-                askRepair(game, broken);
+            play(game);
             return;
         }
         if (canDownload(game))
             chooseLanguage(game);
         else
             pickArchive(game);
-    }
-
-    /** An installation whose archives are empty has no world to start: the game would end with an error, so the player is told before. */
-    private void askRepair(final int game, List<String> broken) {
-        StringBuilder names = new StringBuilder();
-        for (int i = 0; i < broken.size() && i < 4; ++i)
-            names.append("\n  ").append(broken.get(i));
-        if (broken.size() > 4)
-            names.append("\n  ...");
-        new AlertDialog.Builder(this)
-                .setTitle(GAMES[game].title)
-                .setMessage(Texts.t("The files of the game are damaged: " + broken.size() + " archives are empty or incomplete (an interrupted download or a damaged ZIP)."
-                                + names + "\n\nRemove the files and install the game again? The saves are kept.",
-                        "Pliki gry są uszkodzone: " + broken.size() + " archiwów jest pustych lub niepełnych (przerwane pobieranie albo uszkodzony ZIP)."
-                                + names + "\n\nUsunąć pliki i zainstalować grę od nowa? Zapisy zostaną."))
-                .setPositiveButton(Texts.t("Remove and install", "Usuń i zainstaluj"), (d, w) -> removeFiles(game, () -> onPrimary(game)))
-                .setNegativeButton(Texts.t("Play anyway", "Graj mimo to"), (d, w) -> play(game))
-                .setNeutralButton(Texts.t("Cancel", "Anuluj"), null)
-                .show();
     }
 
     private void play(int game) {
@@ -927,7 +884,6 @@ public final class LauncherActivity extends Activity {
             remove(rootOf(game));
             runOnUiThread(() -> {
                 importing = -1;
-                integrity.remove(game);
                 refresh();
                 if (then != null)
                     then.run();

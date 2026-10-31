@@ -8,6 +8,7 @@
 #include <cstring>
 #include <filesystem>
 #include <fstream>
+#include <iterator>
 #include <mutex>
 #include <string>
 #include <system_error>
@@ -25,6 +26,7 @@ const char* const CrashFile = "crash.log";
 struct State {
   std::mutex        sync;
   std::atomic<int>  level{SafeGpu::Normal};
+  std::atomic<bool> noHiz{false};
   std::string       identity;
   std::FILE*        lock   = nullptr;
   int               armed  = 0;
@@ -42,6 +44,7 @@ struct Saved {
   int         level = 0;
   std::string identity;
   std::string shader;
+  bool        noHiz = false;
   };
 
 Saved readFile(const char* name) {
@@ -65,6 +68,8 @@ Saved readFile(const char* name) {
       r.identity = val;
     else if(key=="shader")
       r.shader = val;
+    else if(key=="nohiz")
+      r.noHiz = (val=="1");
     }
   r.valid = !r.identity.empty();
   return r;
@@ -75,7 +80,7 @@ void removeFile(const char* name) {
   std::filesystem::remove(name,ec);
   }
 
-void writeMode(const std::string& identity, int level, const std::string& shader) {
+void writeMode(const std::string& identity, int level, const std::string& shader, bool noHiz) {
   std::ofstream out(ModeFile,std::ios::trunc);
   if(!out) {
     Log::e("Safe GPU mode: unable to write ",ModeFile," (it will be forgotten after the next start)");
@@ -84,6 +89,26 @@ void writeMode(const std::string& identity, int level, const std::string& shader
   out << "level=" << level << "\n";
   out << "gpu="   << identity << "\n";
   out << "shader=" << shader << "\n";
+  out << "nohiz=" << (noHiz ? 1 : 0) << "\n";
+  }
+
+/// The crash.log of a death in a command of the driver (not in its compiler, so the lock knows nothing): the stack names the build of HiZ.
+/// The log tells the GPU of the crash ("GPU: Adreno (TM) 618"), another GPU is not the reason to leave HiZ.
+bool crashInHiZ(const std::string& identity) {
+  std::ifstream in(CrashFile);
+  if(!in)
+    return false;
+  const std::string text((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+  if(text.find("buildHiZ")==std::string::npos)
+    return false;
+  const auto gpu = text.find("GPU: ");
+  if(gpu!=std::string::npos) {
+    const auto end  = text.find_first_of("\r\n",gpu);
+    const std::string name = text.substr(gpu+5,end==std::string::npos ? std::string::npos : end-gpu-5);
+    if(name!=identity)
+      return false;
+    }
+  return true;
   }
 
 /// the crash.log that is newer than the lock: the crash handler has seen the death (not a kill of the application by the user)
@@ -130,11 +155,15 @@ void SafeGpu::init(std::string_view gpuName) {
     return;
     }
 
-  int level = Normal;
+  int         level  = Normal;
+  bool        noHiz  = false;
+  std::string shader;
   const Saved mode = readFile(ModeFile);
   if(mode.valid) {
     if(mode.identity==s.identity) {
-      level = std::clamp(mode.level,int(Normal),int(Minimal));
+      level  = std::clamp(mode.level,int(Normal),int(Minimal));
+      noHiz  = mode.noHiz;
+      shader = mode.shader;
       } else {
       Log::i("Safe GPU mode: the saved state is of another GPU (",mode.identity.c_str(),"), ignored");
       removeFile(ModeFile);
@@ -152,11 +181,18 @@ void SafeGpu::init(std::string_view gpuName) {
         level = Safe; else
       if(level==Safe && crashed)
         level = Minimal;
-      writeMode(s.identity,level,lock.shader);
+      shader = lock.shader;
+      writeMode(s.identity,level,shader,noHiz);
       } else {
       Log::i("Safe GPU mode: the lock is of another GPU (",lock.identity.c_str(),"), ignored");
       }
     removeFile(LockFile);
+    }
+
+  if(!noHiz && crashInHiZ(s.identity)) {
+    noHiz = true;
+    Log::e("Safe GPU mode: the previous start died in the build of HiZ (crash.log), HiZ is off for ",s.identity.c_str());
+    writeMode(s.identity,level,shader,noHiz);
     }
 
   if(forced==1)
@@ -165,6 +201,7 @@ void SafeGpu::init(std::string_view gpuName) {
     level = Minimal;
 
   s.level = level;
+  s.noHiz = noHiz;
   s.ready = true;
   if(level!=Normal)
     Log::e("Safe GPU mode: level ",level," for ",s.identity.c_str(),
@@ -173,6 +210,10 @@ void SafeGpu::init(std::string_view gpuName) {
 
 SafeGpu::Level SafeGpu::level() {
   return Level(state().level.load());
+  }
+
+bool SafeGpu::noHiZ() {
+  return state().noHiz.load();
   }
 
 void SafeGpu::trace(std::string_view shader) {
