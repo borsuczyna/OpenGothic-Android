@@ -146,6 +146,10 @@ void Gamepad::game(Controls& c, float dt, float look) {
   if(!melee && edge(Pad::LeftBumper))
     c.padTap(Key::Walk);
 
+  // a transformation (a beetle, ...) ends with the key Enter, which the game offers only while it lasts
+  if(edge(Pad::A) && c.available(Key::Enter))
+    c.padTap(Key::Enter);
+
   if(edge(Pad::Y))          c.padTap(Key::Weapon);
   if(edge(Pad::Select))     c.padTap(Key::Inventory);
   if(edge(Pad::Start))      c.padTap(Key::Escape);

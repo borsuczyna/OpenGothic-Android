@@ -213,7 +213,9 @@ SafeGpu::Level SafeGpu::level() {
   }
 
 bool SafeGpu::noHiZ() {
-  return state().noHiz.load();
+  // The minimal level draws no occluders either, and the logs of 0.8.3 (Adreno 618 and 650, both at level 2) died in the build of the
+  // pyramid of the depth that nobody has drawn: the pyramid is not made then, the main view is culled without it.
+  return state().noHiz.load() || level()>=Minimal;
   }
 
 void SafeGpu::trace(std::string_view shader) {

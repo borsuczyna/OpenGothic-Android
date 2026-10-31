@@ -1896,6 +1896,8 @@ void MainWindow::updateMobileAvailability() {
       movement = alive && active;
       if(alive)
         allowed |= keyMask(Key::Status) | keyMask(Key::Log) | keyMask(Key::Map);
+      if(alive && pl->isTransformed())
+        allowed |= keyMask(Key::Enter);   // the only way back to the human form: the touch screen has no keyboard
       if(ground) {
         allowed |= keyMask(Key::Inventory) | keyMask(Key::Weapon) | keyMask(Key::Walk);
         if(pl->canSneak())

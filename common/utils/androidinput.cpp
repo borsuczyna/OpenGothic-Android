@@ -323,8 +323,13 @@ void AndroidInput::Controller::cancel() {
 #ifdef __ANDROID__
 namespace {
 
+/// the flags of the source are unsigned in the NDK
+bool hasSource(int32_t source, uint32_t mask) {
+  return (uint32_t(source) & mask)==mask;
+  }
+
 bool isPadSource(int32_t source) {
-  return (source & AINPUT_SOURCE_GAMEPAD)==AINPUT_SOURCE_GAMEPAD || (source & AINPUT_SOURCE_DPAD)==AINPUT_SOURCE_DPAD;
+  return hasSource(source,uint32_t(AINPUT_SOURCE_GAMEPAD)) || hasSource(source,uint32_t(AINPUT_SOURCE_DPAD));
   }
 
 /// The buttons that only a gamepad has; the D-pad is a gamepad's only when the source says so (a keyboard has the arrows too)
@@ -422,7 +427,7 @@ int32_t AndroidInput::Controller::onInput(AInputEvent* e) {
 
   // The sticks and the triggers of a gamepad are motion with axes, not touches: they must never move a pointer
   const int32_t source = AInputEvent_getSource(e);
-  if((source & AINPUT_SOURCE_JOYSTICK)==AINPUT_SOURCE_JOYSTICK && (source & AINPUT_SOURCE_TOUCHSCREEN)!=AINPUT_SOURCE_TOUCHSCREEN)
+  if(hasSource(source,uint32_t(AINPUT_SOURCE_JOYSTICK)) && !hasSource(source,uint32_t(AINPUT_SOURCE_TOUCHSCREEN)))
     return onPadMotion(e);
 
   const int32_t action = AMotionEvent_getAction(e);
@@ -674,7 +679,7 @@ int AndroidInput::Controller::iconFor(const Mobile::Button& b) const {
     case Key::Weapon:     return game ? IconWeapon : IconTransfer;
     case Key::Up:         return game ? NoIcon : IconUp;
     case Key::Down:       return game ? NoIcon : IconDown;
-    case Key::Enter:      return game ? NoIcon : IconConfirm;
+    case Key::Enter:      return game ? IconBack : IconConfirm;
     default:              break;
     }
   return NoIcon;

@@ -12,7 +12,7 @@
     <uses-feature android:name="android.hardware.vulkan.level" android:version="0" android:required="true" />
     <uses-feature android:name="android.hardware.vulkan.version" android:version="0x00401000" android:required="true" />
     <!-- The servers of the content of Steam answer on plain HTTP too: the data is encrypted and checked by Steam's own hashes -->
-    <application android:label="OpenGothic" android:hasCode="true" android:allowBackup="false" android:largeHeap="true"
+    <application android:label="OpenGothic" android:appCategory="game" android:hasCode="true" android:allowBackup="false" android:largeHeap="true"
         android:usesCleartextTraffic="true"
         android:resizeableActivity="true"
         android:theme="@android:style/Theme.Material.NoActionBar.Fullscreen">

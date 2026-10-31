@@ -20,6 +20,7 @@ Układ wzorowany na zGamePad (Gratt-5r2/zGamePad, domyślny plik `Utils/controls
 | D-pad góra / lewo / prawo / dół | mapa / postać / dziennik / czary |
 | Select | ekwipunek |
 | Start | menu |
+| A w przemianie | powrót do ludzkiej postaci (klawisz Enter, który gra daje tylko w przemianie) |
 
 ## Menu, dialogi, ekwipunek, wytrych, wideo
 

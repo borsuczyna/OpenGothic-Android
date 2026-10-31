@@ -403,6 +403,8 @@ class Npc final {
 
     void      startDive();
     void      transformBack();
+    /// A transformation spell (a beetle, ...) is on: the key Enter turns the character back
+    bool      isTransformed() const { return transformSpl!=nullptr; }
 
     auto      dialogChoices(Npc &player, const std::vector<uint32_t> &except, bool includeImp) -> std::vector<GameScript::DlgChoice>;
 

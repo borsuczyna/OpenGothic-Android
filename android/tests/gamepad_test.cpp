@@ -291,6 +291,24 @@ void lockpick() {
   CHECK(r.count(Event::Down,Key::Down)==1);        // cancel
   }
 
+void transformation() {
+  // the game offers the key Enter only while a transformation lasts; A then turns the character back
+  Rig r;
+  r.c.availability(~keyMask(Key::Enter),true,true,true);
+  r.pad.button(Pad::A,true);
+  r.frame();
+  CHECK(r.count(Event::Down,Key::Enter)==0);
+  r.pad.button(Pad::A,false);
+  r.frame();
+
+  r.c.availability(~uint64_t(0),true,true,true);
+  r.clear();
+  r.pad.button(Pad::A,true);
+  r.frame();
+  CHECK(r.count(Event::Down,Key::Enter)==1 && r.count(Event::Up,Key::Enter)==1);
+  CHECK(r.count(Event::Down,Key::Action)==1);
+  }
+
 void independentOfTouch() {
   // the same key from a finger/keyboard and the pad is counted: letting go of one does not release the other
   Rig r;
@@ -338,6 +356,7 @@ int main() {
   screenChange();
   inventory();
   lockpick();
+  transformation();
   independentOfTouch();
   blocked();
   badInput();

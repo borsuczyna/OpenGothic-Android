@@ -32,8 +32,9 @@ class SafeGpu final {
     static bool  isSafe()    { return level()>=Safe;    }
     static bool  isMinimal() { return level()>=Minimal; }
 
-    /// the driver died in the build of HiZ (a command of the dispatch, not the compiler: no lock, but the crash.log of the previous start names
-    /// Renderer::buildHiZ): the occluders and the pyramid are not made, the main view is culled without the test of HiZ (a bit more is drawn)
+    /// the occluders and the pyramid of HiZ are not made, the main view is culled without the test of HiZ (a bit more is drawn): at the minimal
+    /// level (it draws no occluders, and the pyramid of an empty depth killed the drivers of Adreno 618 and 650), and after a death in the build
+    /// of HiZ (a command of the dispatch, not the compiler: no lock, but the crash.log of the previous start names Renderer::buildHiZ)
     static bool  noHiZ();
 
     /// the shader that is going to be compiled by the driver now; the name stays in the lock if the driver kills the process

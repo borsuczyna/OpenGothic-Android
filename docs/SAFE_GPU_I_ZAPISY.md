@@ -155,3 +155,22 @@ jedno uruchomienie, usunięcie `safegpu.mode` kasuje decyzję (crash.log nadal j
 
 Nie zmieniałem shaderów G-buffera po raz trzeci: bez urządzenia z Adreno każda kolejna zmiana byłaby zgadywaniem. Jeśli nowy APK nadal padnie w `main.frag [GBUFFER]`,
 kolejnym krokiem jest wariant G-buffera bez wyjścia `uint` (R32U) i bez osobnych wariantów vertex, wybierany z poziomu trybu Safe po kolejnej awarii.
+
+### Cztery logi z 31.10.2026 wieczorem (`Desktop/logs/log1..4`): wszystkie wersji 0.8.3
+
+| Log | GPU | Miejsce awarii | Co z tym zrobiono |
+| --- | --- | --- | --- |
+| `log1` (G1) | Adreno 710 | kompilator, `main.vert [MESH_TYPE=2]` + `main.frag [GBUFFER]` | zmiany shaderów `3cf285c1`, `96ddb583` (są w 0.8.4 i 0.9), nie potwierdzone na urządzeniu |
+| `log2` (G2) | Adreno 650, poziom 2 | `vkCmdDispatch` w `Renderer::buildHiZ` | poziom 2 nie buduje już piramidy HiZ (niżej) |
+| `log3` (G2) | Adreno 710 | kompilator, `main.vert [MESH_TYPE=2]` + `main.frag [GBUFFER]` | jak `log1` |
+| `log4` (Kroniki) | Samsung A57 | `~Resources` → `zenkit::Vfs::~Vfs` przy zamykaniu | `std::_Exit` po opróżnieniu logu (`7ba334d2`, po 0.8.4, jest w 0.9) |
+
+Żaden z tych logów nie pochodzi z 0.8.4 ani nowszej wersji, więc nic w nich nie obala poprawek z 0.8.4 i nic ich nie potwierdza.
+
+**HiZ na poziomie 2.** Dwa urządzenia (Adreno 618 i 650) padły w `buildHiZ` dokładnie na poziomie 2, a w pierwszym starcie (poziom 0) ta sama klatka
+przeszła `buildHiZ` bez awarii i padła dopiero później, na pipeline'ie G-buffera. Na poziomie 2 `DrawCommands::drawHiZ` nie rysuje żadnych okluderów
+(`SafeGpu::isMinimal()`), więc piramida była budowana z pustego bufora głębi. Teraz `SafeGpu::noHiZ()` jest prawdą także na poziomie ≥2, bez czekania na
+`crash.log`: nie rysujemy okluderów, nie budujemy piramidy, widok główny idzie przez `visibility_pass_main.comp`. Poprzednia wersja (zapis `nohiz=1` po
+awarii w `buildHiZ`) zostaje jako zabezpieczenie dla poziomu 0 i 1.
+
+Sprawdzone na hoście: `spirv-val` dla 168 shaderów `main_*`, `hiz_*`, `visibility_pass*` — wszystkie poprawne. **Nie potwierdzono na urządzeniu.**
