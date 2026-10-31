@@ -36,7 +36,7 @@ enum Icon : int {
   IconCategoryAll, IconCategoryWeapons, IconCategoryArmor, IconCategoryJewelry, IconCategoryMagic,
   IconCategoryFood, IconCategoryPotion, IconCategoryDocuments, IconCategoryMisc,
   IconInvUse, IconInvDrop, IconInvTransfer, IconInvUp, IconInvDown, IconInvSlot, IconInvSlotSelected,
-  IconSkip, IconTalk, IconTargetLock,
+  IconSkip, IconTalk, IconTargetLock, IconFastForward, IconSave,
   IconCount
   };
 
@@ -58,6 +58,10 @@ struct Preferences {
   int sensitivity = 100; // percent
   int vibration   = 1;   // feedback on damage
   int gui         = 100; // scale of the interface, percent
+  int speed       = 200; // fast forward, percent of the normal speed
+  int hudNumbers  = 0;   // 1: the numbers of life and mana (5/10) over the bars
+  int hudXp       = 0;   // 1: the experience (500/1000) between the bars
+  int strafe      = 1;   // 1: the buttons of the side steps on the HUD
   };
 
 Preferences preferences();
@@ -77,6 +81,8 @@ class Controller {
       int   inventoryCategory = 0;
       bool  inventoryTransfer = false;
       std::string useLabel;           // action of the selected item in the inventory
+      bool  targetLocked = false;
+      bool  fastForward  = false;
       };
 
     void  bind();
@@ -90,6 +96,8 @@ class Controller {
     void  inventoryLists(bool two) { controls.inventoryLists(two); }
     void  gui(float scale) { controls.gui(scale); }
     void  keyboard(bool on) { controls.showKeyboard(on); }
+    void  playerDead(bool on) { controls.playerDead(on); }
+    void  modMenu(bool on) { controls.modMenu(on); }
 
     /// Pointer input: touches on Android, the mouse on desktop builds.
     void  pointerDown(int id, float x, float y);
@@ -118,6 +126,8 @@ class Controller {
     int32_t onInput(AInputEvent* event);
 #endif
     void    applyPreferences();
+    void    loadHudPlaces();
+    void    saveHudPlaces();
     void    dispatch(Tempest::Window& window, Mobile::Mode mode, const Mobile::Event& input);
     void    onSpecial(int id);
 

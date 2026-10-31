@@ -79,7 +79,7 @@ c++ -std=c++17 -I common android/tests/controls_test.cpp common/ui/mobilecontrol
 
 ## Saves
 
-The load and save screens of the touch UI list every `save_slot_N.sav` of the game (there is no limit of the slots), the newest first. A new save is named after the journal topic that has changed last, the name can be changed on the screen (the keyboard of the screen has capital and Polish letters), a save can be renamed, overwritten and deleted. The list shows the chapter and the level of the hero, saves made before this have only the date and the play time. The options are one screen too: the categories on the left, the chosen menu on the right.
+The load and save screens of the touch UI list every `save_slot_N.sav` of the game (there is no limit of the slots), the newest first. A new save is named after the journal topic that has changed last, the name can be changed on the screen (the keyboard of the screen has capital and Polish letters), a save can be renamed, overwritten and deleted. The list shows the chapter and the level of the hero, saves made before this have only the date and the play time. The options are one screen too: the categories on the left, the chosen menu on the right. The launcher can export all saves to a ZIP and import that ZIP later. Import offers two modes: overwrite files whose slot names match, or add every imported save into a new, unused slot so existing saves remain untouched.
 
 ## Icons
 

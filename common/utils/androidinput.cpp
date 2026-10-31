@@ -19,6 +19,7 @@
 
 #include "gothic.h"
 #include "resources.h"
+#include "scripting/modhost.h"
 
 #include "touchassets.h"
 
@@ -29,6 +30,7 @@ namespace {
 
 constexpr int      GlyphAlpha = 48; // pixels below this are considered a halo, not a part of the glyph
 constexpr char     Section[]  = "MOBILE";
+constexpr char     HudSection[] = "MOBILE_HUD";   // places of the buttons of the HUD: <id>_x, <id>_y (permille+1, 0: not set), <id>_h
 
 // Files of android/assets/touch-icons, in the order of AndroidInput::Icon
 const char* const IconFiles[AndroidInput::IconCount] = {
@@ -42,11 +44,11 @@ const char* const IconFiles[AndroidInput::IconCount] = {
   "all.png", "weapons.png", "armor.png", "jewelry.png", "magic.png",
   "food.png", "potion.png", "documents.png", "misc.png",
   "use_new.png", "drop.png", "transfer_new.png", "up_new.png", "down_new.png", "inv_slot.png", "inv_slot_selected.png",
-  "skip.png", "talk.png", "target_lock.png"
+  "skip.png", "talk.png", "target_lock.png", "fast_forward.png", "save.png"
   };
 
 const char* const SettingNames[Mobile::SettingCount] = {
-  "buttons", "resolution", "shadows", "effects", "fps", "deadzone", "sensitivity", "vibration", "gui"
+  "buttons", "resolution", "shadows", "effects", "fps", "deadzone", "sensitivity", "vibration", "gui", "speed", "hudnumbers", "hudxp", "strafe"
   };
 
 // Gives access to the dispatch functions of SystemApi
@@ -174,6 +176,12 @@ int nextValue(int setting, int value) {
       return value ? 0 : 1;
     case Mobile::SettingGui:
       return value>=160 ? 60 : value+10;
+    case Mobile::SettingSpeed:
+      return value>=300 ? 100 : value+50;
+    case Mobile::SettingHudNumbers:
+    case Mobile::SettingHudXp:
+    case Mobile::SettingStrafe:
+      return value ? 0 : 1;
     }
   return value;
   }
@@ -184,6 +192,14 @@ std::string settingText(int setting, const std::string& label) {
     return value ? "SSAO effects: ON" : "SSAO effects: OFF";
   if(setting==Mobile::SettingVibration)
     return value ? "Vibration: ON" : "Vibration: OFF";
+  if(setting==Mobile::SettingHudNumbers)
+    return value ? "HP/Mana numbers: ON" : "HP/Mana numbers: OFF";
+  if(setting==Mobile::SettingHudXp)
+    return value ? "XP counter: ON" : "XP counter: OFF";
+  if(setting==Mobile::SettingStrafe)
+    return value ? "Side step buttons: ON" : "Side step buttons: OFF";
+  if(setting==Mobile::SettingSpeed)
+    return label+"   "+std::to_string(value/100)+"."+std::to_string(value%100/10)+"x";
 
   std::string ret = label+"   "+std::to_string(value);
   const bool percent = setting==Mobile::SettingButtons || setting==Mobile::SettingResolution ||
@@ -269,6 +285,14 @@ AndroidInput::Preferences AndroidInput::preferences() {
     ret.vibration = Gothic::settingsGetI(Section,SettingNames[Mobile::SettingVibration]);
   if(Gothic::settingsGetI(Section,"version")>=3)
     ret.gui = std::clamp(Gothic::settingsGetI(Section,SettingNames[Mobile::SettingGui]),50,200);
+  if(Gothic::settingsGetI(Section,"version")>=4)
+    ret.speed = std::clamp(Gothic::settingsGetI(Section,SettingNames[Mobile::SettingSpeed]),100,300);
+  if(Gothic::settingsGetI(Section,"version")>=5) {
+    ret.hudNumbers = Gothic::settingsGetI(Section,SettingNames[Mobile::SettingHudNumbers])!=0 ? 1 : 0;
+    ret.hudXp      = Gothic::settingsGetI(Section,SettingNames[Mobile::SettingHudXp])!=0 ? 1 : 0;
+    }
+  if(Gothic::settingsGetI(Section,"version")>=6)
+    ret.strafe = Gothic::settingsGetI(Section,SettingNames[Mobile::SettingStrafe])!=0 ? 1 : 0;
   return ret;
   }
 
@@ -284,18 +308,33 @@ void AndroidInput::Controller::bind() {
     Gothic::settingsSetI(Section,SettingNames[Mobile::SettingSensitivity],def.sensitivity);
     Gothic::settingsSetI(Section,SettingNames[Mobile::SettingVibration],  def.vibration);
     Gothic::settingsSetI(Section,SettingNames[Mobile::SettingGui],        def.gui);
-    Gothic::settingsSetI(Section,"version",3);
+    Gothic::settingsSetI(Section,SettingNames[Mobile::SettingSpeed],      def.speed);
+    Gothic::settingsSetI(Section,SettingNames[Mobile::SettingHudNumbers], def.hudNumbers);
+    Gothic::settingsSetI(Section,SettingNames[Mobile::SettingHudXp],      def.hudXp);
+    Gothic::settingsSetI(Section,SettingNames[Mobile::SettingStrafe],     def.strafe);
+    Gothic::settingsSetI(Section,"version",6);
     Gothic::flushSettings();
     } else
-  if(Gothic::settingsGetI(Section,"version")<3) {
-    // settings saved before the vibration and the scale of the interface were added
+  if(Gothic::settingsGetI(Section,"version")<6) {
+    // settings saved before the vibration, the scale of the interface, the fast forward and the side steps were added
     const Preferences def;
-    if(Gothic::settingsGetI(Section,"version")<2)
+    const int version = Gothic::settingsGetI(Section,"version");
+    if(version<2)
       Gothic::settingsSetI(Section,SettingNames[Mobile::SettingVibration],def.vibration);
-    Gothic::settingsSetI(Section,SettingNames[Mobile::SettingGui],def.gui);
-    Gothic::settingsSetI(Section,"version",3);
+    if(version<3)
+      Gothic::settingsSetI(Section,SettingNames[Mobile::SettingGui],def.gui);
+    if(version<4)
+      Gothic::settingsSetI(Section,SettingNames[Mobile::SettingSpeed],def.speed);
+    if(version<5) {
+      Gothic::settingsSetI(Section,SettingNames[Mobile::SettingHudNumbers],def.hudNumbers);
+      Gothic::settingsSetI(Section,SettingNames[Mobile::SettingHudXp],def.hudXp);
+      }
+    // the side step buttons were always there: they stay until the player switches them off
+    Gothic::settingsSetI(Section,SettingNames[Mobile::SettingStrafe],def.strafe);
+    Gothic::settingsSetI(Section,"version",6);
     Gothic::flushSettings();
     }
+  loadHudPlaces();
 
 #ifdef __ANDROID__
   AndroidApi::setInputHandler([](AInputEvent* event, void* user) {
@@ -380,6 +419,46 @@ void AndroidInput::Controller::physical(Mobile::Key key, bool down) {
 void AndroidInput::Controller::applyPreferences() {
   const auto pref = preferences();
   controls.preferences(float(pref.buttons)/100.f,float(pref.deadzone)/100.f,float(pref.sensitivity)/100.f);
+  // the game is vanilla: the fast forward is on the HUD and in the settings only when a mod has asked for it
+  controls.features(Scripting::ModHost::inst().fastForwardWanted(),pref.strafe!=0);
+  }
+
+void AndroidInput::Controller::loadHudPlaces() {
+  std::map<std::string,Mobile::HudPlace> places;
+  for(const char* id:Mobile::HudIds) {
+    const std::string key = id;
+    const int x = Gothic::settingsGetI(HudSection,(key+"_x").c_str());
+    const int y = Gothic::settingsGetI(HudSection,(key+"_y").c_str());
+    const int h = Gothic::settingsGetI(HudSection,(key+"_h").c_str());
+    const int sz = Gothic::settingsGetI(HudSection,(key+"_s").c_str());   // 0: the normal size, else step+1
+    Mobile::HudPlace place;
+    if(x>0 && y>0) {
+      place.placed = true;
+      place.x      = std::clamp(float(x-1)/1000.f,0.f,1.f);
+      place.y      = std::clamp(float(y-1)/1000.f,0.f,1.f);
+      }
+    place.hidden = h!=0;
+    if(sz>=1 && sz<=Mobile::HudSizeSteps)
+      place.size = sz-1;
+    if(place.placed || place.hidden || place.size!=Mobile::HudPlace().size)
+      places[key] = place;
+    }
+  controls.hudPlaces(places);
+  }
+
+void AndroidInput::Controller::saveHudPlaces() {
+  const auto& places = controls.hudPlaces();
+  for(const char* id:Mobile::HudIds) {
+    const std::string key = id;
+    const auto        it  = places.find(key);
+    const bool        has = it!=places.end();
+    const auto        p   = has ? it->second : Mobile::HudPlace();
+    Gothic::settingsSetI(HudSection,(key+"_x").c_str(),has && p.placed ? int(std::lround(p.x*1000.f))+1 : 0);
+    Gothic::settingsSetI(HudSection,(key+"_y").c_str(),has && p.placed ? int(std::lround(p.y*1000.f))+1 : 0);
+    Gothic::settingsSetI(HudSection,(key+"_h").c_str(),has && p.hidden ? 1 : 0);
+    Gothic::settingsSetI(HudSection,(key+"_s").c_str(),has && p.size!=Mobile::HudPlace().size ? p.size+1 : 0);
+    }
+  Gothic::flushSettings();
   }
 
 bool AndroidInput::Controller::update(Window& window, Mobile::Mode mode) {
@@ -396,6 +475,8 @@ bool AndroidInput::Controller::update(Window& window, Mobile::Mode mode) {
   controls.tick(Application::tickCount());
   for(const auto& input:controls.drain())
     dispatch(window,mode,input);
+  if(controls.takeHudChanged())
+    saveHudPlaces();
   return changed;
   }
 
@@ -445,7 +526,7 @@ void AndroidInput::Controller::dispatch(Window& window, Mobile::Mode mode, const
   }
 
 void AndroidInput::Controller::onSpecial(int id) {
-  if(id==Mobile::Special::Settings) {
+  if(id==Mobile::Special::Settings || id==Mobile::Special::EditHud || id==Mobile::Special::HudDone) {
     // The game stays paused while the settings are open
     if(controls.settingsVisible() && !paused) {
       Gothic::inst().pushPause();
@@ -457,6 +538,8 @@ void AndroidInput::Controller::onSpecial(int id) {
       }
     return;
     }
+  if(id==Mobile::Special::HudReset)
+    return;
 
   const int setting = id-Mobile::Special::FirstSetting;
   if(0<=setting && setting<Mobile::SettingCount) {
@@ -511,7 +594,7 @@ void AndroidInput::Controller::loadIcons(TextureAtlas& atlas) {
   }
 
 int AndroidInput::Controller::iconFor(const Mobile::Button& b) const {
-  const bool game      = controls.mode()==Mobile::Mode::Game;
+  const bool game      = controls.gameLayout();
   const bool inventory = controls.mode()==Mobile::Mode::Inventory;
 
   if(b.character!=0)
@@ -525,9 +608,14 @@ int AndroidInput::Controller::iconFor(const Mobile::Button& b) const {
     case Mobile::Special::Settings:
       return controls.settingsVisible() ? IconBack : IconSettings;
     case Mobile::Special::Target:
-      return IconTarget;
+      // the lock of the aim is on: the icon of the lock
+      return hud.targetLocked ? IconTargetLock : IconTarget;
     case Mobile::Special::Spell:
       return IconSpells;
+    case Mobile::Special::Speed:
+      return IconFastForward;
+    case Mobile::Special::QuickSave:
+      return IconSave;
     default:
       if(inventory && b.special>=Mobile::Special::FirstCategory)
         return IconCategoryAll+b.special-Mobile::Special::FirstCategory;
@@ -596,8 +684,9 @@ void AndroidInput::Controller::paintHotbarSlot(Painter& p, Font&, size_t index) 
 
 void AndroidInput::Controller::paintButton(Painter& p, Font& font, size_t index) {
   const auto& b      = controls.buttons()[index];
-  const bool  active = controls.pressed(index);
-  const bool  game      = controls.mode()==Mobile::Mode::Game;
+  const bool  active = controls.pressed(index) || (b.special==Mobile::Special::Speed && hud.fastForward) ||
+                       (b.special==Mobile::Special::Target && hud.targetLocked);
+  const bool  game      = controls.gameLayout();
   const bool  inventory = controls.mode()==Mobile::Mode::Inventory;
   const float s         = controls.unit();
   auto        r         = b.rect;
@@ -638,9 +727,11 @@ void AndroidInput::Controller::paintButton(Painter& p, Font& font, size_t index)
   // Top bar buttons are drawn as bare glyphs
   const bool utility = game && (b.key==Key::Escape || b.key==Key::Status || b.key==Key::Log ||
                                 b.key==Key::Map || b.key==Key::Inventory);
-  paintSprite(p,active ? IconButtonPressed : IconButton,{cx-rad,cy-rad,rad*2,rad*2},1.f);
+  // a button that is switched off is only a ghost in the editor of the HUD
+  const float ghost = b.dimmed ? 0.3f : 1.f;
+  paintSprite(p,active ? IconButtonPressed : IconButton,{cx-rad,cy-rad,rad*2,rad*2},ghost);
 
-  const float alpha = !b.enabled ? 0.28f : active ? 1.f : 0.9f;
+  const float alpha = (!b.enabled ? 0.28f : active ? 1.f : 0.9f)*ghost;
   p.setBrush(Brush(icons[size_t(icon)],Color(0.88f,0.92f,0.95f,alpha)));
   const auto& uv     = ink[size_t(icon)];
   const float size   = rad*(utility ? 1.35f : 1.32f);
@@ -729,14 +820,20 @@ void AndroidInput::Controller::paint(PaintEvent& event) {
       paintButton(p,font,i);
     }
 
+  if(controls.editingHud()) {
+    setFontSize(p,font,15*controls.unit());
+    const float s = controls.unit();
+    const Mobile::Rect r = {screenW*0.25f,screenH*0.5f-92*s,screenW*0.5f,60*s};
+    drawCentered(p,font,r,"Drag a button to move it, tap it to hide or show it");
+    }
   if(controls.settingsVisible())
     return;
-  if(controls.mode()==Mobile::Mode::Menu && !controls.typing())
+  if(controls.mode()==Mobile::Mode::Menu && !controls.typing() && !controls.editingHud())
     return;
 
-  const bool game = controls.mode()==Mobile::Mode::Game;
+  const bool game = controls.gameLayout();
   if(game || controls.mode()==Mobile::Mode::Inventory) {
-    if(game && controls.movementAvailable()) {
+    if(game && (controls.movementAvailable() || controls.editingHud())) {
       paintStick(p);
       }
     return;

@@ -302,6 +302,6 @@ void GameMenu::paintPanel(Painter& p) {
     const int by = g.rowsTop+int(float(ah-bh)*float(touch.offset)/float(int(rows.size())-g.visible));
     bar(p,W-bw-4,by,bw,bh,Gold);
     }
-  }
 
-#endif
+  }
+  #endif

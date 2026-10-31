@@ -76,7 +76,7 @@ file(GLOB_RECURSE OPENGOTHIC_SOURCES "common/*.h" "common/*.cpp")
 
 # mods that come with the program
 include(cmake/embedmods.cmake)
-embed_builtin_mods("${CMAKE_BINARY_DIR}/builtin_mods.cpp" coop devtools)
+embed_builtin_mods("${CMAKE_BINARY_DIR}/builtin_mods.cpp" coop devtools damagenumbers)
 list(APPEND OPENGOTHIC_SOURCES "${CMAKE_BINARY_DIR}/builtin_mods.cpp")
 file(GLOB_RECURSE SPACER_SOURCES "spacer/*.h" "spacer/*.cpp")
 

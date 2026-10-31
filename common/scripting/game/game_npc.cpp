@@ -1,4 +1,5 @@
 #include "scripting/gameapi.h"
+#include "scripting/modutil.h"
 
 #include "game/constants.h"
 #include "game/gamescript.h"
@@ -38,7 +39,7 @@ JSValue get(JSContext* ctx, JSValueConst obj, int prop) {
     return JS_UNDEFINED;
 
   switch(prop) {
-    case Name:       return JS_NewString(ctx,std::string(npc->displayName()).c_str());
+    case Name:       return JS_NewString(ctx,gameToUtf8(npc->displayName()).c_str());
     case Instance:   return JS_NewString(ctx,game::instanceName(npc->world(),npc->instanceSymbol()).c_str());
     case Level:      return JS_NewInt32(ctx,npc->level());
     case Health:     return JS_NewInt32(ctx,npc->attribute(ATR_HITPOINTS));

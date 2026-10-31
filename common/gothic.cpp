@@ -465,11 +465,14 @@ float Gothic::interfaceScale(const Tempest::Widget* w) {
     w = w->owner();
     }
   if(auto window = dynamic_cast<const MainWindow*>(w)) {
-    const float scale = window->uiScale() * mul;
 #if defined(__MOBILE_PLATFORM__)
-    return std::min(scale,std::min(float(window->w())/800.f,float(window->h())/600.f));
+    // The scale of the display is limited to what fits the screen (the menus are made for 800x600), but the choice of
+    // the player goes on top of it: before, the limit was applied after the multiplication, so the setting of
+    // the GUI size did nothing for almost every value on a phone (the result was the limit anyway).
+    const float fit = std::min(float(window->w())/800.f,float(window->h())/600.f);
+    return std::min(window->uiScale(),fit) * mul;
 #else
-    return scale;
+    return window->uiScale() * mul;
 #endif
     }
   return mul;
