@@ -1,5 +1,7 @@
 #include "npc.h"
 
+#include "game/combatfx.h"
+
 #include <Tempest/Matrix4x4>
 #include <Tempest/Log>
 #include <cctype>
@@ -2427,6 +2429,7 @@ void Npc::takeDamage(Npc& other, const Bullet* b, const CollideMask bMask, int32
 
   if(hitResult.value>0) {
     currentOther = &other;
+    CombatFx::inst().onHit(*this,other,hitResult.value);
     changeAttribute(ATR_HITPOINTS,-hitResult.value,dontKill);
 
     if(bMask&(COLL_APPLYVICTIMSTATE|COLL_DOEVERYTHING)) {
@@ -4141,7 +4144,9 @@ Item* Npc::takeItem(Item& item, bool animate) {
     return nullptr;
 
   auto state = bodyStateMasked();
-  if(state!=BS_STAND && state!=BS_SNEAK && state!=BS_SWIM && state!=BS_DIVE) {
+  // without the animation (a mod picks the item up "on the move") the player can walk or run, it does not have to stop
+  const bool onTheMove = !animate && (state==BS_WALK || state==BS_RUN || state==BS_SPRINT);
+  if(state!=BS_STAND && state!=BS_SNEAK && state!=BS_SWIM && state!=BS_DIVE && !onTheMove) {
     return nullptr;
     }
 

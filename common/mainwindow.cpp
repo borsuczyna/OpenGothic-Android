@@ -25,6 +25,9 @@
 #include "game/definitions/musicdefinitions.h"
 #include "utils/gthfont.h"
 #include "utils/haptics.h"
+#include "game/savestore.h"
+#include "game/combatfx.h"
+#include "game/worldmarkers.h"
 #include "scripting/gameapi.h"
 #include "utils/dbgpainter.h"
 
@@ -257,15 +260,18 @@ void MainWindow::paintEvent(PaintEvent& event) {
         world->script().dmaFocus(*pl,focus);
       // CoM hides the status of the player in a camera of a cutscene (OCGAME__UPDATEPLAYERSTATUS_REPLACECHECKINGGLOBALCUTSCENE)
       const bool inCamera = world->script().dmaCutsceneStatusHidden();
-      if(!inCamera)
+      if(!inCamera) {
         paintFocus(p,focus,vp);
+        CombatFx::inst().paint(p,vp,w(),h(),Gothic::interfaceScale(this));
+        WorldMarkers::inst().paint(p,vp,w(),h(),Gothic::interfaceScale(this));
+        }
 
 #ifdef OPENGOTHIC_TOUCH_UI
       constexpr bool screenBars = false;
 #else
       const bool     screenBars = !Gothic::inst().isDesktop();
 #endif
-      if(auto pl = Gothic::inst().player(); pl!=nullptr && !inCamera){
+      if(auto pl = Gothic::inst().player(); pl!=nullptr && !inCamera && !pl->isDead()){
 #ifdef OPENGOTHIC_TOUCH_UI
         drawTouchBars(p,*pl);
 #endif
@@ -759,6 +765,22 @@ void MainWindow::paintFocus(Painter& p, const Focus& focus, const Matrix4x4& vp)
      !(focus.npc->handle().aivar[15]!=0 && world->script().dmaHidesPartyFocus())) {   // CoM: no bar for the companions
     float hp = float(focus.npc->attribute(ATR_HITPOINTS))/float(focus.npc->attribute(ATR_HITPOINTSMAX));
     drawBar(p,barHp, w()/2,10, hp, AlignHCenter|AlignTop);
+
+    // a mod asks for it (combat.configure): health of the enemy as a number, right under its bar
+    const auto co = Scripting::ModHost::inst().combatOptions();
+    if(co.active && co.showEnemyHp && barBack!=nullptr) {
+      const int   barW = int(200.f*scale*float(std::min(w(),800))/800.f);
+      const int   barH = int(float(barBack->h())*float(barW)/float(std::max(barBack->w(),1)));
+      const std::string text = std::to_string(focus.npc->attribute(ATR_HITPOINTS))+"/"+
+                               std::to_string(focus.npc->attribute(ATR_HITPOINTSMAX));
+      const auto  ts   = fnt.textSize(text);
+      const int   tx   = w()/2-ts.w/2;
+      const int   ty   = 10+barH+ts.h;
+      const uint32_t c = co.colorEnemyHp;
+      const auto color = Tempest::Color(float((c>>16)&0xFF)/255.f,float((c>>8)&0xFF)/255.f,float(c&0xFF)/255.f,1.f);
+      fnt.tinted(Tempest::Color(0.f,0.f,0.f,0.85f)).drawText(p,tx+1,ty+1,text);
+      fnt.tinted(color).drawText(p,tx,ty,text);
+      }
     }
 
   const int foc = Gothic::settingsGetI("GAME","highlightMeleeFocus");
@@ -870,20 +892,50 @@ void MainWindow::drawTouchBars(Painter& p, Npc& pl) {
   const float hp  = float(pl.attribute(ATR_HITPOINTS))/float(std::max(1,pl.attribute(ATR_HITPOINTSMAX)));
   const float mp  = float(pl.attribute(ATR_MANA))/float(std::max(1,pl.attribute(ATR_MANAMAX)));
 
+  // optional numbers (the settings of the touch interface): never inside of a bar, so the bars stay as they are
+  const auto  pref      = AndroidInput::preferences();
+  const bool  numbers   = pref.hudNumbers!=0;
+  const bool  xp        = pref.hudXp!=0;
+  const auto  hpText    = std::to_string(pl.attribute(ATR_HITPOINTS))+"/"+
+                          std::to_string(pl.attribute(ATR_HITPOINTSMAX));
+  const auto  mpText    = std::to_string(pl.attribute(ATR_MANA))+"/"+std::to_string(pl.attribute(ATR_MANAMAX));
+  const auto  xpText    = std::to_string(pl.experience())+"/"+std::to_string(pl.experienceNext());
+  auto&       hudFont   = Resources::font(Gothic::interfaceScale(this));
+  // the text is drawn twice, the dark one is a shadow: it can be read on any background
+  auto drawText = [&](const std::string& text, int x, int baseline) {
+    hudFont.tinted(Tempest::Color(0.f,0.f,0.f,0.85f)).drawText(p,x+1,baseline+1,text);
+    hudFont.tinted(Tempest::Color(1.f,1.f,1.f,1.f)).drawText(p,x,baseline,text);
+    };
+  auto barHeight = [&](int width) {
+    return barBack==nullptr ? 0 : int(float(barBack->h())*float(width)/float(std::max(barBack->w(),1)));
+    };
+
   if(mode==Mobile::Mode::Inventory) {
     const int width = int(200.f*Gothic::interfaceScale(this)*float(std::min(w(),800))/800.f);
+    const int yMana = 10+int(float(width)*0.125f)+2;
     drawBar(p,barHp,10,10,width,hp,AlignLeft);
-    drawBar(p,barMana,10,10+int(float(width)*0.125f)+2,width,mp,AlignLeft);
+    drawBar(p,barMana,10,yMana,width,mp,AlignLeft);
+    // the numbers stand to the right of the bars, the experience under them
+    const int bh = barHeight(width);
+    const int th = hudFont.textSize(hpText).h;
+    if(numbers) {
+      drawText(hpText,10+width+8,10+(bh+th)/2);
+      drawText(mpText,10+width+8,yMana+(bh+th)/2);
+      }
+    if(xp)
+      drawText(xpText,10,yMana+bh+th+4);
     return;
     }
   if(mode!=Mobile::Mode::Game)
     return;
 
   // above the hotbar of the controls, same units as the model
+  // the hotbar follows the size of the buttons (settings), so do the bars over it
   const float s     = std::min(float(w())/1000.f,float(h())/440.f);
-  const int   half  = int(Mobile::HotbarSlot*5*s);
-  const int   width = int(Mobile::HotbarSlot*3.2f*s);   // the frame keeps its proportions, so it is not too tall
-  const int   y     = h()-int((Mobile::HotbarBottom+Mobile::HotbarSlot+9)*s);
+  const float slot  = Mobile::hotbarSlot(float(pref.buttons)/100.f);
+  const int   half  = int(slot*5*s);
+  const int   width = int(slot*3.2f*s);   // the frame keeps its proportions, so it is not too tall
+  const int   y     = h()-int((Mobile::HotbarBottom+slot+9)*s);
 
   // the bars stand over the ends of the hotbar
   drawBar(p,barHp,w()/2-half,y,width,hp,AlignLeft | AlignBottom);
@@ -894,6 +946,20 @@ void MainWindow::drawTouchBars(Painter& p, Npc& pl) {
     drawBar(p,barMisc,xr,y,width,left,AlignLeft | AlignBottom);
     } else {
     drawBar(p,barMana,xr,y,width,mp,AlignLeft | AlignBottom);
+    }
+
+  const int bh = barHeight(width);
+  const int th = hudFont.textSize(hpText).h;
+  if(numbers) {
+    // centered over the bars (the text is above the frame, not in it)
+    const int top = y-bh-2;
+    drawText(hpText,w()/2-half+(width-hudFont.textSize(hpText).w)/2,top);
+    if(!pl.isDive())
+      drawText(mpText,xr+(width-hudFont.textSize(mpText).w)/2,top);
+    }
+  if(xp) {
+    // between the bars, on the level of the frames
+    drawText(xpText,w()/2-hudFont.textSize(xpText).w/2,y-(bh-th)/2);
     }
   }
 #endif
@@ -1148,6 +1214,7 @@ uint64_t MainWindow::tick() {
     // a field of text of the menu of the mods gets the keyboard of the screen when it gets the focus
     static bool typing = false;
     const bool  wants  = modMenu.wantsText() || dialogs.wantsText() || rootMenu.wantsText();
+    androidControls.modMenu(modMenu.isActive());
     if(dialogs.takeKeyboardRequest()) {
       typing = true;
       androidControls.keyboard(true);
@@ -1214,19 +1281,30 @@ uint64_t MainWindow::tick() {
     return 0;
     }
 
+  realTickDt = dt;
   dialogs.tick(dt);
   inventory.tick(dt);
-  Gothic::inst().tick(dt);
-  player.tickFocus();
 
+  // fast forward: more game steps in a frame, none of them longer than 50 ms
+  uint64_t total = dt;
+#ifdef OPENGOTHIC_TOUCH_UI
+  total = fastForwardDt(dt);
+#endif
   if(dialogs.isActive())
     ;//clearInput();
-  if(document.isActive())
-    clearInput();
-  tickMouse(dt);
-  player.tickMove(dt);
+  const uint64_t steps = std::max<uint64_t>(1,(total+49)/50);
+  for(uint64_t i=0; i<steps; ++i) {
+    const uint64_t step = total/steps + (i<total%steps ? 1 : 0);
+    Gothic::inst().tick(step);
+    player.tickFocus();
+    if(document.isActive())
+      clearInput();
+    if(i==0)
+      tickMouse(dt);
+    player.tickMove(step);
+    }
   update();
-  return dt;
+  return total;
   }
 
 void MainWindow::updateAnimation(uint64_t dt) {
@@ -1478,6 +1556,10 @@ void MainWindow::onVideo(std::string_view fname) {
 void MainWindow::onStartLoading() {
   dialogCameraReset = false;
   player   .clearInput();
+  player   .clearFocus();
+#ifdef OPENGOTHIC_TOUCH_UI
+  fastForward = false;
+#endif
   inventory.onWorldChanged();
   dialogs  .onWorldChanged();
   }
@@ -1603,7 +1685,7 @@ void MainWindow::render(){
     try {
       dt = tick();
       updateAnimation(dt);
-      tickCamera(dt);
+      tickCamera(dt==0 ? 0 : realTickDt);
       }
     catch(const Tempest::SwapchainSuboptimal&) {
       throw;
@@ -1819,6 +1901,27 @@ void MainWindow::setupMobileControls() {
   androidControls.bind();
   }
 
+uint64_t MainWindow::fastForwardDt(uint64_t dt) {
+  // the fast forward exists only while a mod asks for it (touch.fastForward), else the game is vanilla
+  if(!Scripting::ModHost::inst().fastForwardWanted())
+    fastForward = false;
+  if(!fastForward)
+    return dt;
+  auto* world  = Gothic::inst().world();
+  auto* camera = Gothic::inst().camera();
+  if(world==nullptr || camera==nullptr || mobileContext()!=Mobile::Mode::Game)
+    return dt;
+  if(auto* pl = Gothic::inst().player(); pl!=nullptr && pl->isDead()) {
+    fastForward = false;
+    return dt;
+    }
+  if(dialogs.isActive() || inventory.isActive() || document.isActive() ||
+     camera->isCutscene() || world->isCutsceneLock() || Gothic::inst().isInDialog())
+    return dt;
+  const int speed = std::clamp(AndroidInput::preferences().speed,100,300);
+  return dt*uint64_t(speed)/100;
+  }
+
 void MainWindow::onMobileAction(int id) {
   if(id==Mobile::Special::Mods) {
     modMenu.open();
@@ -1832,6 +1935,36 @@ void MainWindow::onMobileAction(int id) {
     return;
     }
 
+  if(id==Mobile::Special::QuickSave) {
+    auto* pl = Gothic::inst().player();
+    auto* w  = Gothic::inst().world();
+    if(mobileContext()==Mobile::Mode::Game && pl!=nullptr && w!=nullptr && !pl->isDown() &&
+       !dialogs.isActive() && w->currentCs()==nullptr && !w->script().dmaSaveDisabled()) {
+      Gothic::inst().quickSave();
+      Gothic::inst().onPrint("Quick save");
+      }
+    return;
+    }
+
+  if(id==Mobile::Special::LoadSave) {
+    // the player is dead: the newest save, whatever slot it is in
+    auto* pl = Gothic::inst().player();
+    if(pl!=nullptr && pl->isDead()) {
+      const auto saves = SaveStore::list();
+      if(saves.empty()) {
+        Gothic::inst().onPrint("No save to load");
+        } else {
+        Gothic::inst().load(saves.front().file);
+        }
+      }
+    return;
+    }
+
+  if(id==Mobile::Special::Speed) {
+    if(Scripting::ModHost::inst().fastForwardWanted())
+      fastForward = !fastForward;
+    return;
+    }
   if(mobileContext()!=Mobile::Mode::Game)
     return;
   if(id==Mobile::Special::Target)
@@ -1879,6 +2012,10 @@ void MainWindow::updateMobileAvailability() {
   uint64_t allowed = keyMask(Key::Escape);
   const auto mode  = mobileContext();
 
+  // a dead player: no button of the speed, a button that loads the newest save instead
+  const auto* dead = Gothic::inst().player();
+  androidControls.playerDead(mode==Mobile::Mode::Game && dead!=nullptr && dead->isDead());
+
   if(mode==Mobile::Mode::Game) {
     bool target = false, spells = false, movement = false;
     if(auto pl = Gothic::inst().player()) {
@@ -1912,7 +2049,7 @@ void MainWindow::updateMobileAvailability() {
         if(armed)
           allowed |= keyMask(Key::StrafeLeft) | keyMask(Key::StrafeRight);
 
-        target = armed && player.focus().npc!=nullptr;
+        target = armed;
 
         int spellCount = 0;
         for(int i=0; i<10; ++i) {
@@ -1957,6 +2094,8 @@ void MainWindow::updateMobileOverlay() {
   hud = {};
   hud.inventoryCategory = inventory.category();
   hud.inventoryTransfer = inventory.isOpen()!=InventoryMenu::State::Equip;
+  hud.targetLocked = player.hasLock();
+  hud.fastForward  = fastForward;
   if(mobileContext()==Mobile::Mode::Inventory)
     hud.useLabel = std::string(inventory.mobileActionLabel());
 

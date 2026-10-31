@@ -1,6 +1,8 @@
 #include "playercontrol.h"
 
+#include <algorithm>
 #include <cmath>
+#include <vector>
 
 #include "world/objects/npc.h"
 #include "world/objects/item.h"
@@ -9,6 +11,13 @@
 #include "ui/dialogmenu.h"
 #include "ui/inventorymenu.h"
 #include "gothic.h"
+
+namespace {
+
+// 25 m: the units of the world are centimeters
+constexpr float LockRange = 2500.f;
+
+}
 
 PlayerControl::PlayerControl(DialogMenu& dlg, InventoryMenu &inv)
   :dlg(dlg),inv(inv) {
@@ -276,6 +285,19 @@ void PlayerControl::drawVobRay(DbgPainter& p) const {
 
 void PlayerControl::tickFocus() {
   currentFocus = findFocus(&currentFocus);
+  if(lockedNpc!=nullptr) {
+    Npc* prev = lockedNpc;
+    if(validateLock()) {
+      // the lock holds a target that is farther than the focus of the game would see
+      currentFocus = Focus(*lockedNpc);
+      } else {
+      lockedNpc = nullptr;
+      // the held target has died or is knocked out: the lock goes to the next enemy in range, if there is one,
+      // and is released only when nobody is left
+      if(lockedTargetDown(prev) && reacquireLock())
+        currentFocus = Focus(*lockedNpc);
+      }
+    }
   setTarget(currentFocus.npc);
 
   if(!ctrl[Action::ActionGeneric])
@@ -299,6 +321,7 @@ void PlayerControl::tickFocus() {
 
 void PlayerControl::clearFocus() {
   currentFocus = Focus();
+  lockedNpc    = nullptr;
   }
 
 void PlayerControl::actionFocus(Npc& other) {
@@ -412,6 +435,8 @@ void PlayerControl::moveFocus(FocusAction act) {
   if(next==nullptr)
     return;
   currentFocus.npc = next;
+  if(lockedNpc!=nullptr)
+    lockedNpc = next;
   }
 
 void PlayerControl::toggleWalkMode() {
@@ -1112,24 +1137,153 @@ void PlayerControl::processAutoRotate(Npc& pl, float& rot, uint64_t dt) {
     }
   }
 
-void PlayerControl::cycleTarget() {
+bool PlayerControl::validateLock() {
+  auto w  = Gothic::inst().world();
+  auto pl = w!=nullptr ? w->player() : nullptr;
+  if(pl==nullptr || lockedNpc==nullptr)
+    return false;
+  if(pl->isDown() || pl->interactive()!=nullptr || pl->weaponState()==WeaponState::NoWeapon)
+    return false;
+
+  // the pointer may outlive the character, the world knows which of them are still there
+  const Focus checked = w->validateFocus(Focus(*lockedNpc));
+  if(checked.npc!=lockedNpc)
+    return false;
+  if(lockedNpc->isDown())
+    return false;
+  return pl->qDistTo(*lockedNpc)<=LockRange*LockRange;
+  }
+
+/// The held target is still in the world, but it is dead or unconscious
+bool PlayerControl::lockedTargetDown(Npc* prev) {
   auto w = Gothic::inst().world();
-  if(w==nullptr)
+  if(w==nullptr || prev==nullptr)
+    return false;
+  const Focus checked = w->validateFocus(Focus(*prev));
+  return checked.npc==prev && prev->isDown();
+  }
+
+/// Takes the nearest living enemy in range (not behind a wall) after the held target is gone
+bool PlayerControl::reacquireLock() {
+  auto w  = Gothic::inst().world();
+  auto pl = w!=nullptr ? w->player() : nullptr;
+  if(w==nullptr || pl==nullptr)
+    return false;
+  if(pl->isDown() || pl->interactive()!=nullptr || pl->weaponState()==WeaponState::NoWeapon)
+    return false;
+
+  Npc*  best     = nullptr;
+  float bestDist = LockRange*LockRange;
+  for(uint32_t i=0; i<w->npcCount(); ++i) {
+    Npc* npc = w->npcById(i);
+    if(npc==nullptr || npc==pl || npc->isPlayer() || npc->isDown())
+      continue;
+    if(!pl->isEnemy(*npc))
+      continue;
+    const float d = pl->qDistTo(*npc);
+    if(d>bestDist)
+      continue;
+    if(w->physic()->ray(pl->collosionCenter(),npc->collosionCenter()).hasCol)
+      continue;
+    best     = npc;
+    bestDist = d;
+    }
+  if(best==nullptr)
+    return false;
+  lockedNpc = best;
+  setTarget(best);
+  return true;
+  }
+
+void PlayerControl::unlockTarget(Npc& pl) {
+  lockedNpc    = nullptr;
+  currentFocus = Focus();
+  pl.setTarget(nullptr);
+  }
+
+void PlayerControl::cycleTarget() {
+  auto w  = Gothic::inst().world();
+  auto c  = Gothic::inst().camera();
+  auto pl = w!=nullptr ? w->player() : nullptr;
+  if(w==nullptr || c==nullptr || pl==nullptr || pl->isDown())
     return;
+  if(pl->weaponState()==WeaponState::NoWeapon) {
+    if(lockedNpc!=nullptr)
+      unlockTarget(*pl);
+    return;
+    }
+  if(lockedNpc!=nullptr && !validateLock())
+    lockedNpc = nullptr;
 
-  if(currentFocus.npc==nullptr)
-    currentFocus = findFocus(nullptr);
+  struct Candidate {
+    Npc*  npc;
+    float x;
+    float score;
+    bool  hostile;
+    };
+  std::vector<Candidate> list;
 
-  const auto before = currentFocus.npc;
-  moveFocus(ActRight);
-  if(before==currentFocus.npc) {
-    // nobody on the right: wrap around to the leftmost npc
-    for(uint32_t i=0; i<w->npcCount(); ++i) {
-      const auto prev = currentFocus.npc;
-      moveFocus(ActLeft);
-      if(prev==currentFocus.npc)
+  auto vp = c->viewProj();
+  for(uint32_t i=0; i<w->npcCount(); ++i) {
+    Npc* npc = w->npcById(i);
+    if(npc==nullptr || npc==pl || npc->isPlayer() || npc->isDown())
+      continue;
+    const float dist = std::sqrt(pl->qDistTo(*npc));
+    if(dist>LockRange)
+      continue;
+
+    auto p = npc->centerPosition();
+    vp.project(p);
+    if(std::abs(p.x)>1.f || std::abs(p.y)>1.f || p.z<0.f)
+      continue;
+    // a new target must not be behind a wall, the current one is kept
+    if(npc!=lockedNpc && w->physic()->ray(pl->collosionCenter(),npc->collosionCenter()).hasCol)
+      continue;
+
+    Candidate cand;
+    cand.npc     = npc;
+    cand.x       = p.x;
+    cand.score   = std::abs(p.x) + 0.5f*std::abs(p.y) + 0.3f*dist/LockRange;
+    cand.hostile = pl->isEnemy(*npc);
+    list.push_back(cand);
+    }
+  if(list.empty()) {
+    // nobody to take: the button lets the held target go
+    if(lockedNpc!=nullptr)
+      unlockTarget(*pl);
+    return;
+    }
+
+  // enemies first: the others only when there is nobody to fight
+  const bool anyHostile = std::any_of(list.begin(),list.end(),[](const Candidate& c) { return c.hostile; });
+  if(anyHostile)
+    list.erase(std::remove_if(list.begin(),list.end(),[](const Candidate& c) { return !c.hostile; }),list.end());
+  std::sort(list.begin(),list.end(),[](const Candidate& a, const Candidate& b) { return a.x<b.x; });
+
+  Npc* next = nullptr;
+  if(lockedNpc!=nullptr) {
+    // the next one to the right; after the last one (or when the held target is out of the view) the lock is
+    // released, so the button can turn the lock off. The next press takes the nearest to the center again.
+    for(size_t i=0; i<list.size(); ++i) {
+      if(list[i].npc==lockedNpc) {
+        if(i+1<list.size())
+          next = list[i+1].npc;
         break;
+        }
+      }
+    if(next==nullptr) {
+      unlockTarget(*pl);
+      return;
       }
     }
-  setTarget(currentFocus.npc);
+  if(next==nullptr) {
+    auto best = std::min_element(list.begin(),list.end(),[](const Candidate& a, const Candidate& b) {
+      return a.score<b.score;
+      });
+    next = best->npc;
+    }
+
+  lockedNpc    = next;
+  currentFocus = Focus(*next);
+  setTarget(next);
   }

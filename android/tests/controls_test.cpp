@@ -580,7 +580,250 @@ void resetStress() {
 
 }
 
+void speedButton() {
+  Controls c;
+  c.configure(2400,1080,Mode::Game);
+  c.resetPointers();
+  c.drain();
+
+  // vanilla: there is no button of the speed until a mod asks for it
+  c.availability(keyMask(Key::Escape),false,false,true);
+  for(const auto& b:c.buttons())
+    CHECK(b.special!=Special::Speed);
+
+  c.features(true,true);
+  c.availability(keyMask(Key::Escape),false,false,true);
+  CHECK(special(c,Special::Speed).visible);
+  tap(c,special(c,Special::Speed).rect);
+  auto e = c.drain();
+  CHECK(e.size()==1 && e[0].kind==Event::Special && e[0].code==uint32_t(Special::Speed));
+
+  c.features(false,true);
+  for(const auto& b:c.buttons())
+    CHECK(b.special!=Special::Speed);
+  }
+
+bool hasKey(const Controls& c, Key key) {
+  for(const auto& b:c.buttons())
+    if(b.key==key && b.special==Special::None && b.character==0)
+      return true;
+  return false;
+  }
+
+bool hasSpecial(const Controls& c, int id) {
+  for(const auto& b:c.buttons())
+    if(b.special==id)
+      return true;
+  return false;
+  }
+
+const Button& byId(const Controls& c, const char* id) {
+  for(const auto& b:c.buttons())
+    if(b.id==id)
+      return b;
+  CHECK(false);
+  return c.buttons()[0];
+  }
+
+void settingsRows() {
+  Controls c;
+  c.configure(2400,1080,Mode::Menu);
+  c.resetPointers();
+  tap(c,special(c,Special::Settings).rect,2);
+  c.drain();
+  CHECK(c.settingsVisible());
+  CHECK(!hasSpecial(c,Special::FirstSetting+SettingSpeed));
+  CHECK(hasSpecial(c,Special::FirstSetting+SettingStrafe));
+  CHECK(hasSpecial(c,Special::EditHud));
+
+  c.features(true,true);
+  CHECK(hasSpecial(c,Special::FirstSetting+SettingSpeed));
+  }
+
+void sideStepOption() {
+  Controls c;
+  c.configure(2400,1080,Mode::Game);
+  CHECK(hasKey(c,Key::StrafeLeft) && hasKey(c,Key::StrafeRight));
+  c.features(false,false);
+  CHECK(!hasKey(c,Key::StrafeLeft) && !hasKey(c,Key::StrafeRight));
+  CHECK(hasKey(c,Key::Jump));
+  }
+
+void hotbarFollowsButtons() {
+  Controls c;
+  c.configure(2400,1080,Mode::Game);
+  c.preferences(1.2f,0.28f,1.f);
+  const float normal = button(c,Key::One).rect.w;
+  c.preferences(0.6f,0.28f,1.f);
+  const float small  = button(c,Key::One).rect.w;
+  CHECK(small<normal*0.6f);
+  CHECK(std::abs(small-(hotbarSlot(0.6f)-0.5f)*c.unit())<1.f);
+  CHECK(std::abs(normal-(hotbarSlot(1.2f)-0.5f)*c.unit())<1.f);
+  // still centered, still touching the bottom margin
+  const auto first = button(c,Key::One).rect;
+  const auto last  = button(c,Key::Zero).rect;
+  CHECK(std::abs((first.x+last.x+last.w)/2-1200.f)<1.f);
+  CHECK(std::abs(1080.f-(HotbarBottom+0.5f)*c.unit()-(first.y+first.h))<1.f);
+  }
+
+// A long hold of a button in the editor hides it or shows it again
+void hold(Controls& c, const Rect& r, int id=1) {
+  c.down(id,cx(r),cy(r),T0);
+  c.tick(T0+1000);
+  c.up(id,cx(r),cy(r));
+  }
+
+void hudEditor() {
+  Controls c;
+  c.configure(2400,1080,Mode::Menu);
+  c.resetPointers();
+  tap(c,special(c,Special::Settings).rect,2);
+  tap(c,special(c,Special::EditHud).rect,3);
+  c.drain();
+  CHECK(c.editingHud() && c.gameLayout());
+  CHECK(hasSpecial(c,Special::HudDone) && hasSpecial(c,Special::HudReset));
+
+  // a drag moves a button, nothing of the game is pressed
+  const auto  before = byId(c,"jump").rect;
+  const float x0 = cx(before), y0 = cy(before);
+  const float tx = 1200, ty = 150;   // a free place at the top, in the middle
+  c.down(1,x0,y0,T0);
+  c.move(1,tx,ty);
+  c.up(1,tx,ty);
+  CHECK(!c.held(Key::Jump));
+  const auto after = byId(c,"jump").rect;
+  CHECK(std::abs(cx(after)-tx)<1.f && std::abs(cy(after)-ty)<1.f);
+  CHECK(c.takeHudChanged() && !c.takeHudChanged());
+  CHECK(c.hudPlaces().at("jump").placed && !c.hudPlaces().at("jump").hidden);
+
+  // the button cannot leave the screen
+  c.down(2,cx(after),cy(after),T0);
+  c.move(2,-500,5000);
+  c.up(2,-500,5000);
+  const auto edge = byId(c,"jump").rect;
+  CHECK(edge.x>=0 && edge.y+edge.h<=1080.f+0.5f);
+
+  // a hold hides a button, it stays dimmed in the editor and a second hold shows it
+  hold(c,byId(c,"sneak").rect);
+  CHECK(byId(c,"sneak").dimmed && c.hudPlaces().at("sneak").hidden);
+  hold(c,byId(c,"sneak").rect);
+  CHECK(!byId(c,"sneak").dimmed);
+
+  // the menu cannot be hidden
+  hold(c,byId(c,"menu").rect);
+  CHECK(!byId(c,"menu").dimmed);
+
+  hold(c,byId(c,"map").rect);
+  CHECK(c.hudPlaces().at("map").hidden);
+
+  // back in the settings the game is played with the new layout, a hidden button is gone
+  tap(c,special(c,Special::HudDone).rect);
+  CHECK(!c.editingHud() && c.settingsVisible());
+  c.configure(2400,1080,Mode::Game);
+  CHECK(!hasKey(c,Key::Map));
+  CHECK(hasKey(c,Key::Jump) && hasKey(c,Key::Sneak));
+  CHECK(std::abs(cx(button(c,Key::Jump).rect)-cx(edge))<1.f);
+
+  // the places come from the settings of another start, the same way in another resolution
+  auto saved = c.hudPlaces();
+  Controls d;
+  d.configure(1280,720,Mode::Game);
+  d.hudPlaces(saved);
+  CHECK(!hasKey(d,Key::Map));
+  CHECK(std::abs(cx(button(d,Key::Jump).rect)/1280.f-cx(button(c,Key::Jump).rect)/2400.f)<0.01f);
+
+  // RESET puts everything back
+  Controls e;
+  e.configure(2400,1080,Mode::Game);
+  e.hudPlaces(saved);
+  e.configure(2400,1080,Mode::Menu);
+  tap(e,special(e,Special::Settings).rect,2);
+  tap(e,special(e,Special::EditHud).rect,3);
+  tap(e,special(e,Special::HudReset).rect);
+  CHECK(e.hudPlaces().empty());
+  CHECK(hasKey(e,Key::Map) && !byId(e,"map").dimmed);
+  }
+
+// The buttons of the HUD are solid in the editor: they cannot lie on each other
+void hudEditorCollision() {
+  auto dist = [](const Rect& a, const Rect& b) { return std::hypot(cx(a)-cx(b),cy(a)-cy(b)); };
+  auto noOverlap = [&](const Controls& c, const char* id) {
+    const auto& me = byId(c,id).rect;
+    for(const auto& o:c.buttons()) {
+      if(o.id.empty() || o.id==id)
+        continue;
+      CHECK(dist(me,o.rect)>=(me.w+o.rect.w)/2-0.5f);
+      }
+    };
+
+  for(const auto screen:screens) {
+    Controls c;
+    c.configure(screen.w,screen.h,Mode::Menu);
+    c.resetPointers();
+    tap(c,special(c,Special::Settings).rect,2);
+    tap(c,special(c,Special::EditHud).rect,3);
+    c.drain();
+    CHECK(c.editingHud());
+
+    // dropped right on the center of another button: pushed out, not on it
+    const auto target = byId(c,"target").rect;
+    const auto jump   = byId(c,"jump").rect;
+    c.down(1,cx(jump),cy(jump),T0);
+    c.move(1,cx(target),cy(target));
+    c.up(1,cx(target),cy(target));
+    noOverlap(c,"jump");
+    CHECK(c.hudPlaces().at("jump").placed);
+
+    // dragged through a row of buttons: it never lies on one at any moment of the drag
+    const auto  walk = byId(c,"action").rect;
+    const float y    = cy(walk);
+    c.down(2,cx(walk),y,T0);
+    for(float x=cx(walk); x>40; x-=10) {
+      c.move(2,x,y);
+      noOverlap(c,"action");
+      }
+    c.up(2,40,y);
+    noOverlap(c,"action");
+
+    // thrown at every corner and every edge: the same
+    for(float fx:{-1000.f,screen.w/2,screen.w+1000.f}) {
+      for(float fy:{-1000.f,screen.h/2,screen.h+1000.f}) {
+        const auto r = byId(c,"hitleft").rect;
+        c.down(3,cx(r),cy(r),T0);
+        c.move(3,fx,fy);
+        c.up(3,fx,fy);
+        noOverlap(c,"hitleft");
+        const auto e = byId(c,"hitleft").rect;
+        CHECK(e.x>=-0.5f && e.y>=-0.5f && e.x+e.w<=screen.w+0.5f && e.y+e.h<=screen.h+0.5f);
+        }
+      }
+
+    // the size of a button never grows over a neighbour: tap through all the steps
+    for(int i=0; i<2*HudSizeSteps; ++i) {
+      tap(c,byId(c,"block").rect);
+      noOverlap(c,"block");
+      }
+    }
+
+  // a button in a free place is still dragged exactly where the finger is
+  Controls c;
+  c.configure(2400,1080,Mode::Menu);
+  c.resetPointers();
+  tap(c,special(c,Special::Settings).rect,2);
+  tap(c,special(c,Special::EditHud).rect,3);
+  const auto r = byId(c,"map").rect;
+  c.down(1,cx(r),cy(r),T0);
+  c.move(1,1500,300);
+  c.up(1,1500,300);
+  CHECK(std::abs(cx(byId(c,"map").rect)-1500)<1.f && std::abs(cy(byId(c,"map").rect)-300)<1.f);
+  }
+
 int main() {
+  settingsRows();
+  sideStepOption();
+  hotbarFollowsButtons();
+  hudEditorCollision();
+  hudEditor();
   menuSwipeDoesNotConfirm();
   explicitConfirmation();
   gameMultitouch();
@@ -594,6 +837,7 @@ int main() {
   menuGestures();
   availabilityKeepsMovement();
   strafeButtons();
+  speedButton();
   inventoryActions();
   settingsAreIsolated();
   resetStress();

@@ -50,6 +50,12 @@ import java.util.zip.ZipInputStream;
 public final class LauncherActivity extends Activity {
     private static final int REQUEST_IMPORT = 1;
     private static final int REQUEST_LOGIN = 3;
+    private static final int REQUEST_EXPORT_SAVES = 4;
+    private static final int REQUEST_IMPORT_SAVES = 5;
+    private static final String[] SAVE_GAMES = {
+            "Gothic 1", "Gothic 2", "Gothic 2 Noc Kruka", "Gothic 2 Kroniki Myrtany"
+    };
+    private static final String[] SAVE_GAME_IDS = {"gothic1", "gothic2", "gothic2_notr", "myrtana"};
     private static final int MAX_ENTRIES = 200000;
     private static final long MAX_SIZE = 20L * 1024 * 1024 * 1024;
 
@@ -119,6 +125,8 @@ public final class LauncherActivity extends Activity {
     private volatile int importing = -1;  // the game that is imported or removed now
     private volatile String importText = "";
     private int importTarget = -1;
+    private int saveImportMode = SaveImport.OVERWRITE;
+    private String saveGameId = "gothic2_notr";
     private boolean ownedAsked;
     private boolean loginShown;
 
@@ -373,6 +381,12 @@ public final class LauncherActivity extends Activity {
             refresh();
             return;
         }
+        if (request == REQUEST_IMPORT_SAVES || request == REQUEST_EXPORT_SAVES) {
+            if (result != RESULT_OK || data == null || data.getData() == null)
+                return;
+            runSaveTransfer(request == REQUEST_EXPORT_SAVES, data.getData());
+            return;
+        }
         if (request != REQUEST_IMPORT || result != RESULT_OK || data == null || data.getData() == null || importTarget < 0)
             return;
 
@@ -393,7 +407,7 @@ public final class LauncherActivity extends Activity {
     private View buildUi() {
         LinearLayout page = new LinearLayout(this);
         page.setOrientation(LinearLayout.VERTICAL);
-        page.setPadding(dp(28), dp(14), dp(28), dp(20));
+        page.setPadding(dp(20), dp(14), dp(20), dp(20));
         page.setBackground(new GradientDrawable(GradientDrawable.Orientation.TL_BR,
                 new int[] {0xff050b12, 0xff0e2130, 0xff060c13}));
 
@@ -411,7 +425,7 @@ public final class LauncherActivity extends Activity {
         names.addView(text(Texts.t("Your library", "Twoja biblioteka"), 14, GREY));
 
         // the game of the author: a small banner between the name and the buttons
-        LinearLayout.LayoutParams promoParams = new LinearLayout.LayoutParams(0, dp(60), 1.f);
+        LinearLayout.LayoutParams promoParams = new LinearLayout.LayoutParams(0, dp(68), 1.f);
         promoParams.setMargins(dp(16), 0, dp(6), 0);
         header.addView(buildPromo(), promoParams);
 
@@ -428,6 +442,15 @@ public final class LauncherActivity extends Activity {
         LinearLayout.LayoutParams mp0 = new LinearLayout.LayoutParams(-2, -2);
         mp0.setMargins(dp(10), 0, 0, 0);
         header.addView(mods, mp0);
+
+        // Keep save tools in one compact panel so the promotional game banner keeps
+        // the same flexible width it had before the save-import feature was added.
+        TextView saves = chip(Texts.t("Saves", "Zapisy"));
+        saves.setOnClickListener(v -> showSavePanel());
+        LinearLayout.LayoutParams savesParams = new LinearLayout.LayoutParams(-2, -2);
+        savesParams.setMargins(dp(10), 0, 0, 0);
+        header.addView(saves, savesParams);
+
         accountButton = chip("");
         accountButton.setOnClickListener(v -> accountMenu());
         LinearLayout.LayoutParams ap = new LinearLayout.LayoutParams(-2, -2);
@@ -465,7 +488,7 @@ public final class LauncherActivity extends Activity {
         box.setOnClickListener(v -> openDiscord());
 
         ImageView bg = new ImageView(this);
-        bg.setScaleType(ImageView.ScaleType.CENTER_CROP);
+        bg.setScaleType(ImageView.ScaleType.FIT_XY);
         Bitmap picture = loadCover("promo/summerhideout-bg.webp");
         if (picture != null)
             bg.setImageBitmap(picture);
@@ -479,7 +502,7 @@ public final class LauncherActivity extends Activity {
 
         LinearLayout row = new LinearLayout(this);
         row.setGravity(Gravity.CENTER_VERTICAL);
-        row.setPadding(dp(10), dp(4), dp(8), dp(4));
+        row.setPadding(dp(8), dp(3), dp(6), dp(3));
         box.addView(row, new FrameLayout.LayoutParams(-1, -1));
 
         ImageView logo = new ImageView(this);
@@ -487,7 +510,7 @@ public final class LauncherActivity extends Activity {
         Bitmap mark = loadCover("promo/summerhideout-logo.webp");
         if (mark != null)
             logo.setImageBitmap(mark);
-        row.addView(logo, new LinearLayout.LayoutParams(dp(84), -1));
+        row.addView(logo, new LinearLayout.LayoutParams(dp(68), -1));
 
         LinearLayout texts = new LinearLayout(this);
         texts.setOrientation(LinearLayout.VERTICAL);
@@ -814,8 +837,109 @@ public final class LauncherActivity extends Activity {
         if (Build.VERSION.SDK_INT >= 33)
             requestPermissions(new String[] {"android.permission.POST_NOTIFICATIONS"}, 1);
         Downloads.state = null;
-        startForegroundService(SteamBridge.downloadIntent(this, GAMES[game].appId, GAMES[game].folder, GAMES[game].title, language));
+        Intent download = SteamBridge.downloadIntent(this, GAMES[game].appId, GAMES[game].folder, GAMES[game].title,
+                language);
+        // startForegroundService exists since Android 8, the minimum of the app is lower
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
+            startForegroundService(download);
+        else
+            startService(download);
         refresh();
+    }
+
+    /** Writes the saves to a ZIP or reads them from one on a thread, the result is shown in a dialog. */
+    private void runSaveTransfer(final boolean exporting, final Uri uri) {
+        final int mode = saveImportMode;
+        final String gameId = saveGameId;
+        new Thread(() -> {
+            String failure = null;
+            int count = 0;
+            try {
+                count = exporting ? SaveExport.write(this, uri, gameId) : SaveImport.read(this, uri, mode, gameId);
+                if (count == 0)
+                    failure = exporting
+                            ? Texts.t("No save files were found.", "Nie znaleziono plików zapisów.")
+                            : Texts.t("No save files were found in this archive.",
+                                    "W archiwum nie znaleziono zapisów gry.");
+            } catch (IOException e) {
+                failure = e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
+            }
+            final int done = count;
+            final String error = failure;
+            runOnUiThread(() -> new AlertDialog.Builder(this)
+                    .setTitle(exporting
+                            ? Texts.t("Save export", "Eksport zapisów")
+                            : Texts.t("Save import", "Import zapisów"))
+                    .setMessage(error != null ? error : exporting
+                            ? Texts.t("Exported " + done + " save files.", "Wyeksportowano " + done + " plików zapisów.")
+                            : Texts.t("Imported " + done + " save files.",
+                                    "Zaimportowano " + done + " plików zapisów."))
+                    .setPositiveButton("OK", null)
+                    .show());
+        }, exporting ? "save-export" : "save-import").start();
+    }
+
+    /** A single panel for importing and exporting game saves. */
+    private void showSavePanel() {
+        new AlertDialog.Builder(this)
+                .setTitle(Texts.t("Save management", "Zarządzanie zapisami"))
+                .setItems(new CharSequence[] {
+                        Texts.t("Export saves to ZIP", "Eksportuj zapisy do ZIP"),
+                        Texts.t("Import saves from ZIP", "Importuj zapisy z ZIP")
+                }, (dialog, which) -> {
+                    if (which == 0)
+                        exportSaves();
+                    else
+                        importSaves();
+                })
+                .setNegativeButton(Texts.t("Close", "Zamknij"), null)
+                .show();
+    }
+
+    /** Export one game's save namespace into a ZIP with an embedded game identifier. */
+    private void exportSaves() {
+        final String[] games = SAVE_GAMES;
+        final String[] ids = SAVE_GAME_IDS;
+        new AlertDialog.Builder(this)
+                .setTitle(Texts.t("Choose game to export", "Wybierz grę do eksportu"))
+                .setItems(games, (dialog, which) -> {
+                    saveGameId = ids[which];
+                    Intent create = new Intent(Intent.ACTION_CREATE_DOCUMENT);
+                    create.addCategory(Intent.CATEGORY_OPENABLE);
+                    create.setType("application/zip");
+                    create.putExtra(Intent.EXTRA_TITLE, "OpenGothic-" + ids[which] + "-Saves.zip");
+                    startActivityForResult(create, REQUEST_EXPORT_SAVES);
+                })
+                .setNegativeButton(Texts.t("Cancel", "Anuluj"), null)
+                .show();
+    }
+
+    /** Select a game namespace, then retain the original overwrite/separate-slot choice. */
+    private void importSaves() {
+        final String[] games = SAVE_GAMES;
+        final String[] ids = SAVE_GAME_IDS;
+        new AlertDialog.Builder(this)
+                .setTitle(Texts.t("Choose game in archive", "Wybierz grę z archiwum"))
+                .setItems(games, (dialog, game) -> {
+                    saveGameId = ids[game];
+                    final String[] modes = {
+                            Texts.t("Overwrite saves with matching names", "Nadpisz zapisy o tych samych nazwach"),
+                            Texts.t("Add all saves as separate slots", "Dodaj wszystkie zapisy jako osobne sloty")
+                    };
+                    new AlertDialog.Builder(this)
+                            .setTitle(Texts.t("Import saves", "Import zapisów"))
+                            .setItems(modes, (d, which) -> {
+                                saveImportMode = which == 0 ? SaveImport.OVERWRITE : SaveImport.ADD_SEPARATELY;
+                                Intent open = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+                                open.addCategory(Intent.CATEGORY_OPENABLE);
+                                open.setType("application/zip");
+                                startActivityForResult(open, REQUEST_IMPORT_SAVES);
+                            })
+                            .setNegativeButton(Texts.t("Cancel", "Anuluj"), null)
+                            .show();
+                })
+                .setNegativeButton(Texts.t("Cancel", "Anuluj"), null)
+                .show();
     }
 
     private void cardMenu(final int game, View anchor) {

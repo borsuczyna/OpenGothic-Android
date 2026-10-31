@@ -32,6 +32,9 @@ class PlayerControl final {
     void  tickFocus();
     void  clearFocus();
     void  cycleTarget();
+    void  unlockTarget(Npc& pl);
+    bool  hasLock() const { return lockedNpc!=nullptr; }
+    void  releaseLock() { lockedNpc = nullptr; }
 
     bool  interact(Interactive& it);
     bool  interact(Npc&         other);
@@ -144,6 +147,7 @@ class PlayerControl final {
 
     bool           cacheFocus=false;
     Focus          currentFocus;
+    Npc*           lockedNpc = nullptr;   //!< the target held by the lock button
     float          rotMouse=0;
     float          rotMouseY=0;
     bool           casting = false;
@@ -159,6 +163,9 @@ class PlayerControl final {
 
     void           setupSettings();
     bool           canInteract() const;
+    bool           validateLock();
+    bool           lockedTargetDown(Npc* prev);
+    bool           reacquireLock();
     void           marvinF8(uint64_t dt);
     void           marvinK(uint64_t dt);
     void           marvinO();

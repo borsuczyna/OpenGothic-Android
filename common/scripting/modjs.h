@@ -16,6 +16,12 @@ namespace js {
   /// message and stack of the pending exception, the exception is taken
   std::string exception(JSContext* ctx);
 
+  /// Optional properties of an options object (combat.configure, screen.marker): true when the property is there and
+  /// has been read, `out` is left as it was otherwise. A color is "#rrggbb" or a number, 0xRRGGBB.
+  bool getBool (JSContext* ctx, JSValueConst obj, const char* key, bool& out);
+  bool getInt  (JSContext* ctx, JSValueConst obj, const char* key, int& out);
+  bool getColor(JSContext* ctx, JSValueConst obj, const char* key, uint32_t& out);
+
   void fn(JSContext* ctx, JSValueConst obj, const char* name, JSCFunction* f, int argc);
 
   using Magic = JSValue (*)(JSContext*, JSValueConst, int, JSValueConst*, int);

@@ -19,10 +19,13 @@ void setup();
 void installNpc   (JSContext* ctx);   // the prototype of the characters, see game_npc.cpp
 void installPlayer(JSContext* ctx);   // player
 void installNpcs  (JSContext* ctx);   // npcs
+void installItems (JSContext* ctx);   // items, the things that lie on the ground, see game_items.cpp
 void installWorld (JSContext* ctx);   // world
 void installQuests(JSContext* ctx);   // quests
 void installScreen(JSContext* ctx);   // screen
 void installInput (JSContext* ctx);   // input
+void installTouch (JSContext* ctx);   // touch, the controls of the touch interface, see game_touch.cpp
+void installCombat(JSContext* ctx);   // combat, numbers of damage and health in a fight, see game_combat.cpp
 void installUi    (JSContext* ctx);   // ui, the tabs of the menu of the mods, see game_ui.cpp
 void installDebug (JSContext* ctx);   // debug, for the developers: the log, the scripts, the triggers, see game_debug.cpp
 

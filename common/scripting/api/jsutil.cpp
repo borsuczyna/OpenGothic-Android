@@ -1,5 +1,7 @@
 #include "scripting/modjs.h"
 
+#include <cstdlib>
+
 using namespace Scripting;
 
 Mod& js::mod(JSContext* ctx) {
@@ -55,6 +57,53 @@ std::string js::exception(JSContext* ctx) {
     }
   JS_FreeValue(ctx,ex);
   return ret;
+  }
+
+bool js::getBool(JSContext* ctx, JSValueConst obj, const char* key, bool& out) {
+  JSValue v = JS_GetPropertyStr(ctx,obj,key);
+  const bool has = !JS_IsUndefined(v);
+  if(has)
+    out = JS_ToBool(ctx,v)!=0;
+  JS_FreeValue(ctx,v);
+  return has;
+  }
+
+bool js::getInt(JSContext* ctx, JSValueConst obj, const char* key, int& out) {
+  JSValue v = JS_GetPropertyStr(ctx,obj,key);
+  bool has = false;
+  if(JS_IsNumber(v)) {
+    double d = 0;
+    JS_ToFloat64(ctx,&d,v);
+    out = int(d);
+    has = true;
+    }
+  JS_FreeValue(ctx,v);
+  return has;
+  }
+
+bool js::getColor(JSContext* ctx, JSValueConst obj, const char* key, uint32_t& out) {
+  JSValue v = JS_GetPropertyStr(ctx,obj,key);
+  bool has = false;
+  if(JS_IsString(v)) {
+    const std::string s = str(ctx,v);
+    const char* b = s.c_str();
+    if(*b=='#')
+      ++b;
+    char* end = nullptr;
+    const unsigned long c = std::strtoul(b,&end,16);
+    if(end!=b) {
+      out = uint32_t(c&0xFFFFFF);
+      has = true;
+      }
+    } else
+  if(JS_IsNumber(v)) {
+    double d = 0;
+    JS_ToFloat64(ctx,&d,v);
+    out = uint32_t(int64_t(d))&0xFFFFFF;
+    has = true;
+    }
+  JS_FreeValue(ctx,v);
+  return has;
   }
 
 void js::fn(JSContext* ctx, JSValueConst obj, const char* name, JSCFunction* f, int argc) {

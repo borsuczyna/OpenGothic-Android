@@ -467,7 +467,25 @@ void ModHost::saveStorage(Mod& mod) {
 
 // --- life of a mod
 
+bool ModHost::fastForwardWanted() const {
+  for(const auto& m:list) {
+    if(m->isRunning() && m->fastForward)
+      return true;
+    }
+  return false;
+  }
+
+CombatOptions ModHost::combatOptions() const {
+  for(const auto& m:list) {
+    if(m->isRunning() && m->combat.active)
+      return m->combat;
+    }
+  return CombatOptions();
+  }
+
 void ModHost::release(Mod& mod) {
+  mod.fastForward = false;
+  mod.combat      = CombatOptions();
   if(mod.ctx==nullptr)
     return;
 

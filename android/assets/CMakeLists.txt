@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.12)
 
 project(TouchAssets LANGUAGES CXX)
 
-file(GLOB SOURCES "touch-icons/*.png")
+file(GLOB SOURCES CONFIGURE_DEPENDS "touch-icons/*.png")
 # the icons are embedded at configure time
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${SOURCES})
 

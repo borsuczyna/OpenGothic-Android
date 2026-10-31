@@ -115,6 +115,8 @@ class MainWindow : public Tempest::Window {
 #ifdef OPENGOTHIC_TOUCH_UI
     Mobile::Mode mobileContext() const;
     int      lastHitpoints = -1;
+    bool     fastForward = false;
+    uint64_t fastForwardDt(uint64_t dt);
     void     setupMobileControls();
     void     onMobileAction(int id);
     void     updateMobileControls();
@@ -198,6 +200,7 @@ class MainWindow : public Tempest::Window {
     Tempest::Point            dMouse;
     PlayerControl             player;
     uint64_t                  lastTick=0;
+    uint64_t                  realTickDt=0;   // the step of the real time, the camera does not speed up
 
     Tempest::Shortcut         funcKey[11];
     Tempest::Shortcut         displayPos;
