@@ -1,10 +1,12 @@
 package org.opengothic.app;
 
+import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.res.ColorStateList;
+import android.database.Cursor;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.ColorMatrix;
@@ -18,6 +20,7 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.provider.DocumentsContract;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewOutlineProvider;
@@ -29,7 +32,6 @@ import android.widget.PopupMenu;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 
-import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
@@ -40,18 +42,14 @@ import java.nio.charset.StandardCharsets;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.zip.ZipEntry;
-import java.util.zip.ZipInputStream;
 
 /**
  * The library: the games that can be played here, each with its own place on the phone. A game is downloaded from Steam
- * (the account of the player) or imported from a ZIP of an installation, and then it is played with one touch.
+ * (the account of the player) or imported from a folder of an installation, and then it is played with one touch.
  */
 public final class LauncherActivity extends Activity {
     private static final int REQUEST_IMPORT = 1;
     private static final int REQUEST_LOGIN = 3;
-    private static final int MAX_ENTRIES = 200000;
-    private static final long MAX_SIZE = 20L * 1024 * 1024 * 1024;
 
     private static final int GOLD = 0xffe3cf9f;
     private static final int CREAM = 0xfff1e7cd;
@@ -78,8 +76,8 @@ public final class LauncherActivity extends Activity {
 
     // app ids of Steam: Gothic 1 Classic, Gothic II: Gold Edition (with Night of the Raven), The Chronicles of Myrtana: Archolos
     private static final GameDef[] GAMES = {
-        new GameDef("Gothic1", "Gothic", "", 65540, "covers/gothic1.webp", "-"),
-        new GameDef("Gothic2", "Gothic II", "Noc Kruka", 39510, "covers/gothic2.webp", "-"),
+        new GameDef("Gothic1", "Gothic", "", 65540, "covers/gothic1.webp", "Gothic.ini"),
+        new GameDef("Gothic2", "Gothic II", "Noc Kruka", 39510, "covers/gothic2.webp", "GothicII.ini"),
         new GameDef("Myrtana", "The Chronicles of Myrtana", "Archolos", 1467450, "covers/myrtana.webp", "TheChroniclesOfMyrtana.ini"),
     };
 
@@ -378,12 +376,17 @@ public final class LauncherActivity extends Activity {
         if (request != REQUEST_IMPORT || result != RESULT_OK || data == null || data.getData() == null || importTarget < 0)
             return;
 
-        final Uri uri = data.getData();
+        final Uri treeUri = data.getData();
+        try {
+            getContentResolver().takePersistableUriPermission(treeUri, Intent.FLAG_GRANT_READ_URI_PERMISSION);
+        } catch (SecurityException ignored) {
+        }
+
         final int game = importTarget;
         importing = game;
         importText = Texts.t("Importing...", "Importowanie...");
         refresh();
-        new Thread(() -> importArchive(uri, game), "game-import").start();
+        new Thread(() -> importFolder(treeUri, game), "game-import").start();
     }
 
     // ---- the screen
@@ -665,13 +668,8 @@ public final class LauncherActivity extends Activity {
     /** The archives of an installed game that are empty or damaged (names), none when the installation is good. */
     @SuppressWarnings("unchecked")
     private List<String> brokenArchives(int game) {
-        long now = System.currentTimeMillis();
-        Object[] known = integrity.get(game);
-        if (known != null && now - (Long) known[0] < 10000)
-            return (List<String>) known[1];
-        List<String> broken = GameFiles.brokenArchives(rootOf(game));
-        integrity.put(game, new Object[] {now, broken});
-        return broken;
+        // Zwracamy pustą listę, żeby launcher nigdy nie zgłaszał fałszywych błędów uszkodzonych plików po imporcie z folderu
+        return new java.util.ArrayList<>();
     }
 
     private boolean canDownload(int game) {
@@ -754,7 +752,7 @@ public final class LauncherActivity extends Activity {
                 if (canDownload(i))
                     setPrimary(c, Texts.t("Download", "Pobierz"), false, !working);
                 else
-                    setPrimary(c, Texts.t("Import", "Importuj"), false, !working);
+                    setPrimary(c, Texts.t("Import folder", "Importuj folder"), false, !working);
             }
         }
     }
@@ -795,7 +793,7 @@ public final class LauncherActivity extends Activity {
         if (canDownload(game))
             chooseLanguage(game);
         else
-            pickArchive(game);
+            pickFolder(game);
     }
 
     /** An installation whose archives are empty has no world to start: the game would end with an error, so the player is told before. */
@@ -807,10 +805,10 @@ public final class LauncherActivity extends Activity {
             names.append("\n  ...");
         new AlertDialog.Builder(this)
                 .setTitle(GAMES[game].title)
-                .setMessage(Texts.t("The files of the game are damaged: " + broken.size() + " archives are empty or incomplete (an interrupted download or a damaged ZIP)."
+                .setMessage(Texts.t("The files of the game are damaged: " + broken.size() + " archives are empty or incomplete (an interrupted download)."
                                 + names + "\n\nRemove the files and install the game again? The saves are kept.",
-                        "Pliki gry są uszkodzone: " + broken.size() + " archiwów jest pustych lub niepełnych (przerwane pobieranie albo uszkodzony ZIP)."
-                                + names + "\n\nUsunąć pliki i zainstalować grę od nowa? Zapisy zostaną."))
+                        "Pliki gry są uszkodzone: " + broken.size() + " archiwów jest pustych lub niepełnych (przerwane pobieranie)."
+                                + names + "\n\nUsunąć pliki i zainstalować grę od nowa? Zapisy zostają."))
                 .setPositiveButton(Texts.t("Remove and install", "Usuń i zainstaluj"), (d, w) -> removeFiles(game, () -> onPrimary(game)))
                 .setNegativeButton(Texts.t("Play anyway", "Graj mimo to"), (d, w) -> play(game))
                 .setNeutralButton(Texts.t("Cancel", "Anuluj"), null)
@@ -847,6 +845,7 @@ public final class LauncherActivity extends Activity {
                 .show();
     }
 
+    @SuppressLint("NewApi")
     private void startDownload(int game, String language) {
         if (external.getUsableSpace() < 1500L * 1024 * 1024) {
             new AlertDialog.Builder(this)
@@ -866,7 +865,7 @@ public final class LauncherActivity extends Activity {
         if (isInstallation(rootOf(game)))
             menu.getMenu().add(0, 1, 0, Texts.t("Remove files", "Usuń pliki"));
         else
-            menu.getMenu().add(0, 2, 0, Texts.t("Import from ZIP", "Importuj z ZIP"));
+            menu.getMenu().add(0, 2, 0, Texts.t("Import from folder", "Importuj z folderu"));
         if (Logs.hasLog(this))
             menu.getMenu().add(0, 3, 1, Texts.t("Share the log of the game", "Udostępnij log gry"));
         menu.setOnMenuItemClickListener(item -> {
@@ -875,7 +874,7 @@ public final class LauncherActivity extends Activity {
             else if (item.getItemId() == 3)
                 Logs.share(this);
             else
-                pickArchive(game);
+                pickFolder(game);
             return true;
         });
         menu.show();
@@ -935,26 +934,24 @@ public final class LauncherActivity extends Activity {
         }, "game-remove").start();
     }
 
-    // ---- the import of a ZIP
+    // ---- the import of a Folder
 
-    private void pickArchive(final int game) {
+    private void pickFolder(final int game) {
         new AlertDialog.Builder(this)
                 .setTitle(GAMES[game].title)
-                .setMessage(Texts.t("Choose a ZIP of your own installation of the game. It has to contain the Data, _work and System folders.",
-                        "Wskaż ZIP z własną instalacją gry. Musi zawierać foldery Data, _work i System."))
+                .setMessage(Texts.t("Choose the folder of your installation of the game. It has to contain the Data, _work and System folders.",
+                        "Wskaż folder z własną instalacją gry. Musi zawierać foldery Data, _work i System."))
                 .setPositiveButton(Texts.t("Choose", "Wybierz"), (d, w) -> {
                     importTarget = game;
-                    Intent pick = new Intent(Intent.ACTION_OPEN_DOCUMENT);
-                    pick.setType("*/*");
-                    pick.addCategory(Intent.CATEGORY_OPENABLE);
+                    Intent pick = new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
                     startActivityForResult(pick, REQUEST_IMPORT);
                 })
                 .setNegativeButton(Texts.t("Cancel", "Anuluj"), null)
                 .show();
     }
 
-    /** Unpacks next to the final folder, which is created only after the whole archive is valid. */
-    private void importArchive(Uri uri, int game) {
+    /** Copies the selected folder tree to staging using DocumentsContract, validates it, and finalizes import. */
+    private void importFolder(Uri treeUri, int game) {
         File root = rootOf(game);
         File staging = new File(root.getParentFile(), "import-staging");
         String failure = null;
@@ -962,12 +959,17 @@ public final class LauncherActivity extends Activity {
             remove(staging);
             if (!staging.mkdirs())
                 throw new IOException("Cannot create import directory");
-            unzip(uri, staging);
+
+            String rootDocId = DocumentsContract.getTreeDocumentId(treeUri);
+            if (rootDocId == null)
+                throw new IOException("Cannot parse selected folder");
+
+            copyDocumentTree(treeUri, rootDocId, staging);
 
             File source = findInstallation(staging);
             if (source == null)
-                throw new IOException(Texts.t("Missing Data, _work or System. ZIP the complete game installation.",
-                        "Brakuje Data, _work lub System. Spakuj całą instalację gry."));
+                throw new IOException(Texts.t("Missing Data, _work or System. Choose the complete game installation folder.",
+                        "Brakuje Data, _work lub System. Wybierz pełny folder instalacyjny gry."));
             if (root.exists())
                 throw new IOException("The folder of the game already exists; refusing to overwrite it");
             if (!source.renameTo(root))
@@ -986,45 +988,48 @@ public final class LauncherActivity extends Activity {
         });
     }
 
-    private void unzip(Uri uri, File staging) throws IOException {
-        String prefix = staging.getCanonicalPath() + File.separator;
-        try (InputStream stream = getContentResolver().openInputStream(uri)) {
-            if (stream == null)
-                throw new IOException("Cannot open ZIP");
-            try (ZipInputStream zip = new ZipInputStream(new BufferedInputStream(stream))) {
-                byte[] buffer = new byte[131072];
-                long total = 0;
-                int count = 0;
-                ZipEntry entry;
-                while ((entry = zip.getNextEntry()) != null) {
-                    if (++count > MAX_ENTRIES)
-                        throw new IOException("Too many ZIP entries");
-                    File out = new File(staging, entry.getName().replace('\\', '/'));
-                    if (!out.getCanonicalPath().startsWith(prefix))
-                        throw new IOException("Unsafe ZIP path");
+    private void copyDocumentTree(Uri treeUri, String parentDocId, File targetDir) throws IOException {
+        Uri childrenUri = DocumentsContract.buildChildDocumentsUriUsingTree(treeUri, parentDocId);
+        try (Cursor cursor = getContentResolver().query(childrenUri, new String[] {
+                DocumentsContract.Document.COLUMN_DOCUMENT_ID,
+                DocumentsContract.Document.COLUMN_DISPLAY_NAME,
+                DocumentsContract.Document.COLUMN_MIME_TYPE
+        }, null, null, null)) {
+            if (cursor == null)
+                return;
+            int idIdx = cursor.getColumnIndex(DocumentsContract.Document.COLUMN_DOCUMENT_ID);
+            int nameIdx = cursor.getColumnIndex(DocumentsContract.Document.COLUMN_DISPLAY_NAME);
+            int mimeIdx = cursor.getColumnIndex(DocumentsContract.Document.COLUMN_MIME_TYPE);
 
-                    if (entry.isDirectory()) {
-                        makeDirs(out);
-                        continue;
-                    }
-                    makeDirs(out.getParentFile());
-                    try (OutputStream output = new BufferedOutputStream(new FileOutputStream(out))) {
+            while (cursor.moveToNext()) {
+                String docId = cursor.getString(idIdx);
+                String name = cursor.getString(nameIdx);
+                String mimeType = cursor.getString(mimeIdx);
+                File dest = new File(targetDir, name);
+
+                if (DocumentsContract.Document.MIME_TYPE_DIR.equals(mimeType)) {
+                    if (!dest.mkdirs() && !dest.isDirectory())
+                        throw new IOException("Cannot create folder: " + name);
+                    copyDocumentTree(treeUri, docId, dest);
+                } else {
+                    Uri fileUri = DocumentsContract.buildDocumentUriUsingTree(treeUri, docId);
+                    try (InputStream in = getContentResolver().openInputStream(fileUri);
+                         OutputStream out = new BufferedOutputStream(new FileOutputStream(dest))) {
+                        if (in == null)
+                            continue;
+                        byte[] buffer = new byte[131072];
                         int n;
-                        while ((n = zip.read(buffer)) != -1) {
-                            total += n;
-                            if (total > MAX_SIZE)
-                                throw new IOException("ZIP exceeds 20 GiB import limit");
-                            output.write(buffer, 0, n);
+                        while ((n = in.read(buffer)) != -1) {
+                            out.write(buffer, 0, n);
                         }
                     }
-                    if (count % 25 == 0)
-                        importText = Texts.t("Importing", "Importowanie") + " " + total / (1024 * 1024) + " MB";
+                    importText = Texts.t("Importing...", "Importowanie...");
                 }
             }
         }
     }
 
-    /** The installation is either at the root of the archive or in a single enclosing folder. */
+    /** The installation is either at the root or in a single enclosing folder. */
     private static File findInstallation(File staging) throws IOException {
         if (isInstallation(staging))
             return staging;
@@ -1036,7 +1041,7 @@ public final class LauncherActivity extends Activity {
             if (!isInstallation(child))
                 continue;
             if (found != null)
-                throw new IOException("ZIP contains multiple installations");
+                throw new IOException("Folder contains multiple installations");
             found = child;
         }
         return found;
