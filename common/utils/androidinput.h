@@ -36,7 +36,7 @@ enum Icon : int {
   IconCategoryAll, IconCategoryWeapons, IconCategoryArmor, IconCategoryJewelry, IconCategoryMagic,
   IconCategoryFood, IconCategoryPotion, IconCategoryDocuments, IconCategoryMisc,
   IconInvUse, IconInvDrop, IconInvTransfer, IconInvUp, IconInvDown, IconInvSlot, IconInvSlotSelected,
-  IconSkip, IconTalk, IconTargetLock, IconFastForward,
+  IconSkip, IconTalk, IconTargetLock, IconFastForward, IconSave,
   IconCount
   };
 
@@ -96,6 +96,7 @@ class Controller {
     void  inventoryLists(bool two) { controls.inventoryLists(two); }
     void  gui(float scale) { controls.gui(scale); }
     void  keyboard(bool on) { controls.showKeyboard(on); }
+    void  playerDead(bool on) { controls.playerDead(on); }
     void  modMenu(bool on) { controls.modMenu(on); }
 
     /// Pointer input: touches on Android, the mouse on desktop builds.

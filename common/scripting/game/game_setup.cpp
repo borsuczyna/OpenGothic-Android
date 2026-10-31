@@ -59,6 +59,7 @@ void game::setup() {
     installScreen(ctx);
     installInput(ctx);
     installTouch(ctx);
+    installCombat(ctx);
     installUi(ctx);
     installDebug(ctx);
     };

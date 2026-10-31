@@ -198,6 +198,9 @@ JSValue corpses(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv) {
     put(ctx,o,"id",       double(npc->uid()));
     put(ctx,o,"name",     std::string(npc->displayName()));
     put(ctx,o,"distance", double((npc->position()-pos).length()));
+    put(ctx,o,"x",        double(npc->centerPosition().x));
+    put(ctx,o,"y",        double(npc->centerPosition().y));
+    put(ctx,o,"z",        double(npc->centerPosition().z));
     put(ctx,o,"visible",  lineOfSight(*world,*pl,npc->centerPosition()));
     JS_SetPropertyStr(ctx,o,"loot",loot);
     JS_SetPropertyUint32(ctx,arr,n++,o);

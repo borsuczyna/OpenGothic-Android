@@ -149,11 +149,7 @@ For testing the game and the mods (`mods/devtools` is made of it). The log: `deb
 The journal. `quests.create(id, title, section)` (section 0 mission, 1 note), `quests.addEntry(id, text)`, `quests.setStatus(id, status)` with `quests.status.RUNNING | SUCCESS | FAILED | OBSOLETE`.
 
 ### `screen`
-`screen.print(text)` - a message on the screen. The text is UTF-8 like everything in the scripts: the game draws its fonts byte by byte (CP1250: Polish, Czech; the German letters are the same), so the host converts the text, and the names that the game gives to the scripts (`name` of items and characters) are converted to UTF-8. Polish letters (ą ć ę ł ń ó ś ź ż) work in both directions. A letter that the font does not have becomes `?` (the Czech `š č ř ž` become `s c r z`).
-
-### `touch`
-The touch interface (Android). The game is vanilla until a mod asks for something; the request ends when the mod stops.
-`touch.fastForward(on)` - shows the button of the speed on the HUD and the setting *Fast forward* (1.0x - 3.0x) in the settings, `touch.isFastForward()` tells whether this mod has asked. `mods/fastforward` is the whole mod. On a computer the calls do nothing.
+`screen.print(text)` - a message on the screen.
 
 ### `input`
 `input.isDown(key)`.

@@ -44,7 +44,7 @@ const char* const IconFiles[AndroidInput::IconCount] = {
   "all.png", "weapons.png", "armor.png", "jewelry.png", "magic.png",
   "food.png", "potion.png", "documents.png", "misc.png",
   "use_new.png", "drop.png", "transfer_new.png", "up_new.png", "down_new.png", "inv_slot.png", "inv_slot_selected.png",
-  "skip.png", "talk.png", "target_lock.png", "fast_forward.png"
+  "skip.png", "talk.png", "target_lock.png", "fast_forward.png", "save.png"
   };
 
 const char* const SettingNames[Mobile::SettingCount] = {
@@ -430,6 +430,7 @@ void AndroidInput::Controller::loadHudPlaces() {
     const int x = Gothic::settingsGetI(HudSection,(key+"_x").c_str());
     const int y = Gothic::settingsGetI(HudSection,(key+"_y").c_str());
     const int h = Gothic::settingsGetI(HudSection,(key+"_h").c_str());
+    const int sz = Gothic::settingsGetI(HudSection,(key+"_s").c_str());   // 0: the normal size, else step+1
     Mobile::HudPlace place;
     if(x>0 && y>0) {
       place.placed = true;
@@ -437,7 +438,9 @@ void AndroidInput::Controller::loadHudPlaces() {
       place.y      = std::clamp(float(y-1)/1000.f,0.f,1.f);
       }
     place.hidden = h!=0;
-    if(place.placed || place.hidden)
+    if(sz>=1 && sz<=Mobile::HudSizeSteps)
+      place.size = sz-1;
+    if(place.placed || place.hidden || place.size!=Mobile::HudPlace().size)
       places[key] = place;
     }
   controls.hudPlaces(places);
@@ -453,6 +456,7 @@ void AndroidInput::Controller::saveHudPlaces() {
     Gothic::settingsSetI(HudSection,(key+"_x").c_str(),has && p.placed ? int(std::lround(p.x*1000.f))+1 : 0);
     Gothic::settingsSetI(HudSection,(key+"_y").c_str(),has && p.placed ? int(std::lround(p.y*1000.f))+1 : 0);
     Gothic::settingsSetI(HudSection,(key+"_h").c_str(),has && p.hidden ? 1 : 0);
+    Gothic::settingsSetI(HudSection,(key+"_s").c_str(),has && p.size!=Mobile::HudPlace().size ? p.size+1 : 0);
     }
   Gothic::flushSettings();
   }
@@ -610,6 +614,8 @@ int AndroidInput::Controller::iconFor(const Mobile::Button& b) const {
       return IconSpells;
     case Mobile::Special::Speed:
       return IconFastForward;
+    case Mobile::Special::QuickSave:
+      return IconSave;
     default:
       if(inventory && b.special>=Mobile::Special::FirstCategory)
         return IconCategoryAll+b.special-Mobile::Special::FirstCategory;

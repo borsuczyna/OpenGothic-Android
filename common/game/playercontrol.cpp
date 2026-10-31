@@ -283,11 +283,16 @@ void PlayerControl::drawVobRay(DbgPainter& p) const {
 void PlayerControl::tickFocus() {
   currentFocus = findFocus(&currentFocus);
   if(lockedNpc!=nullptr) {
+    Npc* prev = lockedNpc;
     if(validateLock()) {
       // the lock holds a target that is farther than the focus of the game would see
       currentFocus = Focus(*lockedNpc);
       } else {
       lockedNpc = nullptr;
+      // the held target has died or is knocked out: the lock goes to the next enemy in range, if there is one,
+      // and is released only when nobody is left
+      if(lockedTargetDown(prev) && reacquireLock())
+        currentFocus = Focus(*lockedNpc);
       }
     }
   setTarget(currentFocus.npc);
@@ -1144,6 +1149,47 @@ bool PlayerControl::validateLock() {
   if(lockedNpc->isDown())
     return false;
   return pl->qDistTo(*lockedNpc)<=LockRange*LockRange;
+  }
+
+/// The held target is still in the world, but it is dead or unconscious
+bool PlayerControl::lockedTargetDown(Npc* prev) {
+  auto w = Gothic::inst().world();
+  if(w==nullptr || prev==nullptr)
+    return false;
+  const Focus checked = w->validateFocus(Focus(*prev));
+  return checked.npc==prev && prev->isDown();
+  }
+
+/// Takes the nearest living enemy in range (not behind a wall) after the held target is gone
+bool PlayerControl::reacquireLock() {
+  auto w  = Gothic::inst().world();
+  auto pl = w!=nullptr ? w->player() : nullptr;
+  if(w==nullptr || pl==nullptr)
+    return false;
+  if(pl->isDown() || pl->interactive()!=nullptr || pl->weaponState()==WeaponState::NoWeapon)
+    return false;
+
+  Npc*  best     = nullptr;
+  float bestDist = LockRange*LockRange;
+  for(uint32_t i=0; i<w->npcCount(); ++i) {
+    Npc* npc = w->npcById(i);
+    if(npc==nullptr || npc==pl || npc->isPlayer() || npc->isDown())
+      continue;
+    if(!pl->isEnemy(*npc))
+      continue;
+    const float d = pl->qDistTo(*npc);
+    if(d>bestDist)
+      continue;
+    if(w->physic()->ray(pl->collosionCenter(),npc->collosionCenter()).hasCol)
+      continue;
+    best     = npc;
+    bestDist = d;
+    }
+  if(best==nullptr)
+    return false;
+  lockedNpc = best;
+  setTarget(best);
+  return true;
   }
 
 void PlayerControl::unlockTarget(Npc& pl) {

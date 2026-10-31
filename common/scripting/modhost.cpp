@@ -475,8 +475,17 @@ bool ModHost::fastForwardWanted() const {
   return false;
   }
 
+CombatOptions ModHost::combatOptions() const {
+  for(const auto& m:list) {
+    if(m->isRunning() && m->combat.active)
+      return m->combat;
+    }
+  return CombatOptions();
+  }
+
 void ModHost::release(Mod& mod) {
   mod.fastForward = false;
+  mod.combat      = CombatOptions();
   if(mod.ctx==nullptr)
     return;
 

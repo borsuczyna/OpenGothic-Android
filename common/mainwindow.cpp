@@ -25,6 +25,9 @@
 #include "game/definitions/musicdefinitions.h"
 #include "utils/gthfont.h"
 #include "utils/haptics.h"
+#include "game/savestore.h"
+#include "game/combatfx.h"
+#include "game/worldmarkers.h"
 #include "scripting/gameapi.h"
 #include "utils/dbgpainter.h"
 
@@ -257,15 +260,18 @@ void MainWindow::paintEvent(PaintEvent& event) {
         world->script().dmaFocus(*pl,focus);
       // CoM hides the status of the player in a camera of a cutscene (OCGAME__UPDATEPLAYERSTATUS_REPLACECHECKINGGLOBALCUTSCENE)
       const bool inCamera = world->script().dmaCutsceneStatusHidden();
-      if(!inCamera)
+      if(!inCamera) {
         paintFocus(p,focus,vp);
+        CombatFx::inst().paint(p,vp,w(),h(),Gothic::interfaceScale(this));
+        WorldMarkers::inst().paint(p,vp,w(),h(),Gothic::interfaceScale(this));
+        }
 
 #ifdef OPENGOTHIC_TOUCH_UI
       constexpr bool screenBars = false;
 #else
       const bool     screenBars = !Gothic::inst().isDesktop();
 #endif
-      if(auto pl = Gothic::inst().player(); pl!=nullptr && !inCamera){
+      if(auto pl = Gothic::inst().player(); pl!=nullptr && !inCamera && !pl->isDead()){
 #ifdef OPENGOTHIC_TOUCH_UI
         drawTouchBars(p,*pl);
 #endif
@@ -759,6 +765,21 @@ void MainWindow::paintFocus(Painter& p, const Focus& focus, const Matrix4x4& vp)
      !(focus.npc->handle().aivar[15]!=0 && world->script().dmaHidesPartyFocus())) {   // CoM: no bar for the companions
     float hp = float(focus.npc->attribute(ATR_HITPOINTS))/float(focus.npc->attribute(ATR_HITPOINTSMAX));
     drawBar(p,barHp, w()/2,10, hp, AlignHCenter|AlignTop);
+
+    // a mod asks for it (combat.configure): health of the enemy as a number, right under its bar
+    const auto co = Scripting::ModHost::inst().combatOptions();
+    if(co.active && co.showEnemyHp && barBack!=nullptr) {
+      const int   barW = int(200.f*scale*float(std::min(w(),800))/800.f);
+      const int   barH = int(float(barBack->h())*float(barW)/float(std::max(barBack->w(),1)));
+      const std::string text = std::to_string(focus.npc->attribute(ATR_HITPOINTS))+"/"+std::to_string(focus.npc->attribute(ATR_HITPOINTSMAX));
+      const auto  ts   = fnt.textSize(text);
+      const int   tx   = w()/2-ts.w/2;
+      const int   ty   = 10+barH+ts.h;
+      const uint32_t c = co.colorEnemyHp;
+      const auto color = Tempest::Color(float((c>>16)&0xFF)/255.f,float((c>>8)&0xFF)/255.f,float(c&0xFF)/255.f,1.f);
+      fnt.tinted(Tempest::Color(0.f,0.f,0.f,0.85f)).drawText(p,tx+1,ty+1,text);
+      fnt.tinted(color).drawText(p,tx,ty,text);
+      }
     }
 
   const int foc = Gothic::settingsGetI("GAME","highlightMeleeFocus");
@@ -1882,6 +1903,10 @@ uint64_t MainWindow::fastForwardDt(uint64_t dt) {
   auto* camera = Gothic::inst().camera();
   if(world==nullptr || camera==nullptr || mobileContext()!=Mobile::Mode::Game)
     return dt;
+  if(auto* pl = Gothic::inst().player(); pl!=nullptr && pl->isDead()) {
+    fastForward = false;
+    return dt;
+    }
   if(dialogs.isActive() || inventory.isActive() || document.isActive() ||
      camera->isCutscene() || world->isCutsceneLock() || Gothic::inst().isInDialog())
     return dt;
@@ -1899,6 +1924,29 @@ void MainWindow::onMobileAction(int id) {
   if(0<=category && category<Mobile::CategoryCount) {
     if(mobileContext()==Mobile::Mode::Inventory)
       inventory.setCategory(category);
+    return;
+    }
+
+  if(id==Mobile::Special::QuickSave) {
+    auto* pl = Gothic::inst().player();
+    auto* w  = Gothic::inst().world();
+    if(mobileContext()==Mobile::Mode::Game && pl!=nullptr && w!=nullptr && !pl->isDown() &&
+       !dialogs.isActive() && w->currentCs()==nullptr && !w->script().dmaSaveDisabled()) {
+      Gothic::inst().quickSave();
+      Gothic::inst().onPrint("Quick save");
+      }
+    return;
+    }
+
+  if(id==Mobile::Special::LoadSave) {
+    // the player is dead: the newest save, whatever slot it is in
+    auto* pl = Gothic::inst().player();
+    if(pl!=nullptr && pl->isDead()) {
+      const auto saves = SaveStore::list();
+      if(!saves.empty())
+        Gothic::inst().load(saves.front().file); else
+        Gothic::inst().onPrint("No save to load");
+      }
     return;
     }
 
@@ -1953,6 +2001,12 @@ void MainWindow::updateMobileAvailability() {
 
   uint64_t allowed = keyMask(Key::Escape);
   const auto mode  = mobileContext();
+
+  // a dead player: no button of the speed, a button that loads the newest save instead
+  {
+  auto pl = Gothic::inst().player();
+  androidControls.playerDead(mode==Mobile::Mode::Game && pl!=nullptr && pl->isDead());
+  }
 
   if(mode==Mobile::Mode::Game) {
     bool target = false, spells = false, movement = false;

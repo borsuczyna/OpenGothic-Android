@@ -22,7 +22,7 @@ final class SaveExport {
     private SaveExport() {
     }
 
-    static int write(Context context, Uri destination) throws IOException {
+    static int write(Context context, Uri destination, String gameId) throws IOException {
         Set<String> entries = new HashSet<>();
         int[] count = {0};
 
@@ -31,13 +31,16 @@ final class SaveExport {
                 throw new IOException("Android could not open the selected destination.");
 
             try (ZipOutputStream zip = new ZipOutputStream(raw)) {
+                zip.putNextEntry(new ZipEntry("opengothic/game.txt"));
+                zip.write(gameId.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+                zip.closeEntry();
                 // NativeActivity's internal working directory is the app's files directory.
-                addTree(context.getFilesDir(), context.getFilesDir(), "saves/internal", 0, zip, entries, count);
+                addTree(context.getFilesDir(), context.getFilesDir(), "saves/internal", 0, zip, entries, count, gameId);
 
                 // Also check the app-specific external directory in case a build or mod stored saves there.
                 File external = context.getExternalFilesDir(null);
                 if (external != null && external.isDirectory())
-                    addTree(external, external, "saves/external", 0, zip, entries, count);
+                    addTree(external, external, "saves/external", 0, zip, entries, count, gameId);
 
                 zip.finish();
             }
@@ -46,7 +49,7 @@ final class SaveExport {
     }
 
     private static void addTree(File root, File dir, String prefix, int depth,
-                                ZipOutputStream zip, Set<String> entries, int[] count) throws IOException {
+                                ZipOutputStream zip, Set<String> entries, int[] count, String gameId) throws IOException {
         if (depth > MAX_DEPTH || dir == null || !dir.isDirectory())
             return;
 
@@ -56,10 +59,10 @@ final class SaveExport {
 
         for (File file : children) {
             if (file.isDirectory()) {
-                addTree(root, file, prefix, depth + 1, zip, entries, count);
+                addTree(root, file, prefix, depth + 1, zip, entries, count, gameId);
                 continue;
             }
-            if (!file.isFile() || !isSave(file.getName()))
+            if (!file.isFile() || !isSave(file.getName()) || !belongsToGame(file.getName(), gameId))
                 continue;
 
             String canonicalRoot = root.getCanonicalPath() + File.separator;
@@ -83,7 +86,17 @@ final class SaveExport {
         }
     }
 
-    private static boolean isSave(String name) {
+
+    static boolean belongsToGame(String name, String gameId) {
+        String lower = name.toLowerCase(Locale.ROOT);
+        if ("gothic1".equals(gameId)) return lower.startsWith("g1_");
+        if ("myrtana".equals(gameId)) return lower.startsWith("thechroniclesofmyrtana_");
+        if ("gothic2".equals(gameId) || "gothic2_notr".equals(gameId))
+            return lower.startsWith("save_slot_");
+        return false;
+    }
+
+    static boolean isSave(String name) {
         String lower = name.toLowerCase(Locale.ROOT);
         if (!lower.endsWith(".sav"))
             return false;

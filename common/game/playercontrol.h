@@ -164,6 +164,8 @@ class PlayerControl final {
     void           setupSettings();
     bool           canInteract() const;
     bool           validateLock();
+    bool           lockedTargetDown(Npc* prev);
+    bool           reacquireLock();
     void           marvinF8(uint64_t dt);
     void           marvinK(uint64_t dt);
     void           marvinO();

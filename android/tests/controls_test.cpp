@@ -666,6 +666,13 @@ void hotbarFollowsButtons() {
   CHECK(std::abs(1080.f-(HotbarBottom+0.5f)*c.unit()-(first.y+first.h))<1.f);
   }
 
+// A long hold of a button in the editor hides it or shows it again
+void hold(Controls& c, const Rect& r, int id=1) {
+  c.down(id,cx(r),cy(r),T0);
+  c.tick(T0+1000);
+  c.up(id,cx(r),cy(r));
+  }
+
 void hudEditor() {
   Controls c;
   c.configure(2400,1080,Mode::Menu);
@@ -679,12 +686,13 @@ void hudEditor() {
   // a drag moves a button, nothing of the game is pressed
   const auto  before = byId(c,"jump").rect;
   const float x0 = cx(before), y0 = cy(before);
+  const float tx = 1200, ty = 150;   // a free place at the top, in the middle
   c.down(1,x0,y0,T0);
-  c.move(1,x0-300,y0+20);
-  c.up(1,x0-300,y0+20);
+  c.move(1,tx,ty);
+  c.up(1,tx,ty);
   CHECK(!c.held(Key::Jump));
   const auto after = byId(c,"jump").rect;
-  CHECK(std::abs(cx(after)-(x0-300))<1.f && std::abs(cy(after)-(y0+20))<1.f);
+  CHECK(std::abs(cx(after)-tx)<1.f && std::abs(cy(after)-ty)<1.f);
   CHECK(c.takeHudChanged() && !c.takeHudChanged());
   CHECK(c.hudPlaces().at("jump").placed && !c.hudPlaces().at("jump").hidden);
 
@@ -695,17 +703,17 @@ void hudEditor() {
   const auto edge = byId(c,"jump").rect;
   CHECK(edge.x>=0 && edge.y+edge.h<=1080.f+0.5f);
 
-  // a tap hides a button, it stays dimmed in the editor and a second tap shows it
-  tap(c,byId(c,"sneak").rect);
+  // a hold hides a button, it stays dimmed in the editor and a second hold shows it
+  hold(c,byId(c,"sneak").rect);
   CHECK(byId(c,"sneak").dimmed && c.hudPlaces().at("sneak").hidden);
-  tap(c,byId(c,"sneak").rect);
+  hold(c,byId(c,"sneak").rect);
   CHECK(!byId(c,"sneak").dimmed);
 
   // the menu cannot be hidden
-  tap(c,byId(c,"menu").rect);
+  hold(c,byId(c,"menu").rect);
   CHECK(!byId(c,"menu").dimmed);
 
-  tap(c,byId(c,"map").rect);
+  hold(c,byId(c,"map").rect);
   CHECK(c.hudPlaces().at("map").hidden);
 
   // back in the settings the game is played with the new layout, a hidden button is gone
@@ -736,10 +744,85 @@ void hudEditor() {
   CHECK(hasKey(e,Key::Map) && !byId(e,"map").dimmed);
   }
 
+// The buttons of the HUD are solid in the editor: they cannot lie on each other
+void hudEditorCollision() {
+  auto dist = [](const Rect& a, const Rect& b) { return std::hypot(cx(a)-cx(b),cy(a)-cy(b)); };
+  auto noOverlap = [&](const Controls& c, const char* id) {
+    const auto& me = byId(c,id).rect;
+    for(const auto& o:c.buttons()) {
+      if(o.id.empty() || o.id==id)
+        continue;
+      CHECK(dist(me,o.rect)>=(me.w+o.rect.w)/2-0.5f);
+      }
+    };
+
+  for(const auto screen:screens) {
+    Controls c;
+    c.configure(screen.w,screen.h,Mode::Menu);
+    c.resetPointers();
+    tap(c,special(c,Special::Settings).rect,2);
+    tap(c,special(c,Special::EditHud).rect,3);
+    c.drain();
+    CHECK(c.editingHud());
+
+    // dropped right on the center of another button: pushed out, not on it
+    const auto target = byId(c,"target").rect;
+    const auto jump   = byId(c,"jump").rect;
+    c.down(1,cx(jump),cy(jump),T0);
+    c.move(1,cx(target),cy(target));
+    c.up(1,cx(target),cy(target));
+    noOverlap(c,"jump");
+    CHECK(c.hudPlaces().at("jump").placed);
+
+    // dragged through a row of buttons: it never lies on one at any moment of the drag
+    const auto  walk = byId(c,"action").rect;
+    const float y    = cy(walk);
+    c.down(2,cx(walk),y,T0);
+    for(float x=cx(walk); x>40; x-=10) {
+      c.move(2,x,y);
+      noOverlap(c,"action");
+      }
+    c.up(2,40,y);
+    noOverlap(c,"action");
+
+    // thrown at every corner and every edge: the same
+    for(float fx:{-1000.f,screen.w/2,screen.w+1000.f}) {
+      for(float fy:{-1000.f,screen.h/2,screen.h+1000.f}) {
+        const auto r = byId(c,"hitleft").rect;
+        c.down(3,cx(r),cy(r),T0);
+        c.move(3,fx,fy);
+        c.up(3,fx,fy);
+        noOverlap(c,"hitleft");
+        const auto e = byId(c,"hitleft").rect;
+        CHECK(e.x>=-0.5f && e.y>=-0.5f && e.x+e.w<=screen.w+0.5f && e.y+e.h<=screen.h+0.5f);
+        }
+      }
+
+    // the size of a button never grows over a neighbour: tap through all the steps
+    for(int i=0; i<2*HudSizeSteps; ++i) {
+      tap(c,byId(c,"block").rect);
+      noOverlap(c,"block");
+      }
+    }
+
+  // a button in a free place is still dragged exactly where the finger is
+  Controls c;
+  c.configure(2400,1080,Mode::Menu);
+  c.resetPointers();
+  tap(c,special(c,Special::Settings).rect,2);
+  tap(c,special(c,Special::EditHud).rect,3);
+  const auto r = byId(c,"map").rect;
+  c.down(1,cx(r),cy(r),T0);
+  c.move(1,1500,300);
+  c.up(1,1500,300);
+  CHECK(std::abs(cx(byId(c,"map").rect)-1500)<1.f && std::abs(cy(byId(c,"map").rect)-300)<1.f);
+  }
+
 int main() {
   settingsRows();
   sideStepOption();
   hotbarFollowsButtons();
+  hudEditorCollision();
   hudEditor();
   menuSwipeDoesNotConfirm();
   explicitConfirmation();

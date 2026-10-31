@@ -1,5 +1,7 @@
 #include "npc.h"
 
+#include "game/combatfx.h"
+
 #include <Tempest/Matrix4x4>
 #include <Tempest/Log>
 #include <cctype>
@@ -2320,6 +2322,7 @@ void Npc::takeDamage(Npc& other, const Bullet* b, const CollideMask bMask, int32
 
   if(hitResult.value>0) {
     currentOther = &other;
+    CombatFx::inst().onHit(*this,other,hitResult.value);
     changeAttribute(ATR_HITPOINTS,-hitResult.value,dontKill);
 
     if(bMask&(COLL_APPLYVICTIMSTATE|COLL_DOEVERYTHING)) {
