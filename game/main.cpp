@@ -1,6 +1,7 @@
 #include <Tempest/Window>
 #include <Tempest/Application>
 #include <Tempest/Log>
+#include <fstream>
 
 #include <zenkit/Logger.hh>
 
@@ -74,18 +75,40 @@ std::unique_ptr<Tempest::AbstractGraphicsApi> mkApi(const CommandLine& g) {
 #if defined(__ANDROID__)
 static Tempest::WFile* appLogFile = nullptr; // the log of this run, to be flushed when the process ends
 #endif
-
-int main(int argc,const char** argv) {
+int main(int argc, const char** argv) {
 #if defined(__ANDROID__)
-  {
-    auto appdir = InstallDetect::androidInternalDataPath();
-    std::filesystem::current_path(appdir);
-  }
+    {
+        auto appdir = InstallDetect::androidInternalDataPath();
+        std::filesystem::path gameDir = appdir / "gothic2"; // domyślny folder
+        
+        std::ifstream in(appdir / "game.txt");
+        std::string name;
+        if(in && std::getline(in, name) && !name.empty()) {
+            name.erase(name.find_last_not_of(" \n\r\t") + 1);
+            if (!name.empty() && name[0] == '/') {
+                // Jeśli to pełna ścieżka bezwzględna z nowego menedżera plików
+                gameDir = name;
+            } else {
+                // Stara ścieżka względna wewnątrz katalogu aplikacji
+                gameDir = appdir / name;
+            }
+        }
+        
+        // Tworzymy katalog tylko wtedy, gdy to ścieżka wewnętrzna i nie istnieje; 
+        // dla zewnętrznych folderów Steama zakładamy, że już istnieją.
+        if (name.empty() || name[0] != '/') {
+            if(!std::filesystem::exists(gameDir)) {
+                std::filesystem::create_directories(gameDir);
+            }
+        }
+        
+        std::filesystem::current_path(gameDir);
+    }
 #elif defined(__IOS__)
-  {
-    auto appdir = InstallDetect::applicationSupportDirectory();
-    std::filesystem::current_path(appdir);
-  }
+    {
+        auto appdir = InstallDetect::applicationSupportDirectory();
+        std::filesystem::current_path(appdir);
+    }
 #endif
 
   try {
