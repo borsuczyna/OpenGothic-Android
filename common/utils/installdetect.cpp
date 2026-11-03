@@ -1,8 +1,8 @@
 #include "installdetect.h"
-
+#if defined __ANDROID__
+extern "C" const char* SDL_AndroidGetExternalStoragePath();
 #include <Tempest/Platform>
 
-#ifdef __ANDROID__
 #include <Tempest/AndroidApi>
 #endif
 
@@ -41,23 +41,45 @@ std::u16string InstallDetect::detectG2() {
   if(path.empty())
     return u"";
 
-  // the launcher writes the name of the folder of the game that is chosen (Gothic1, Gothic2, Myrtana): there is no command line
-  std::u16string folder = u"gothic2";
+  std::u16string folder = u"";
+  bool isAbsolute = false;
   {
     std::ifstream in(std::filesystem::path(path)/"game.txt");
     std::string   name;
     if(in && std::getline(in,name)) {
-      std::u16string chosen;
-      for(char c:name) {
-        const bool ok = ('a'<=c && c<='z') || ('A'<=c && c<='Z') || ('0'<=c && c<='9') || c=='_' || c=='-';
-        if(!ok)
-          break;
-        chosen.push_back(char16_t(c));
+      while(!name.empty() && (name.back() == '\r' || name.back() == '\n' || name.back() == ' ' || name.back() == '\t'))
+        name.pop_back();
+      while(!name.empty() && (name.front() == ' ' || name.front() == '\t'))
+        name.erase(name.begin());
+
+      if(!name.empty()) {
+        if(name[0] == '/') {
+          isAbsolute = true;
+          folder = std::filesystem::path(name).u16string();
+        } else {
+          std::u16string chosen;
+          for(char c:name) {
+            const bool ok = ('a'<=c && c<='z') || ('A'<=c && c<='Z') || ('0'<=c && c<='9') || c=='_' || c=='-';
+            if(!ok)
+              break;
+            chosen.push_back(char16_t(c));
+          }
+          if(!chosen.empty())
+            folder = chosen;
         }
-      if(!chosen.empty())
-        folder = chosen;
       }
+    }
   }
+
+  // Jeśli to ścieżka bezwzględna, zwracamy ją bezpośrednio wprost ze wskazanego folderu
+  if(isAbsolute) {
+    if(FileUtil::exists(folder))
+      return folder;
+    return u"";
+  }
+
+  if(folder.empty())
+    folder = u"gothic2";
 
   auto ret = FileUtil::nestedPath(path + u"/", {folder.c_str()}, Tempest::Dir::FT_Dir);
   if(ret.empty() && folder!=u"gothic2")
@@ -86,13 +108,15 @@ std::string InstallDetect::androidModIni() {
     }
   return ret;
   }
+#endif
 
 std::filesystem::path InstallDetect::androidInternalDataPath() {
-  auto path = Tempest::AndroidApi::internalDataPath();
-  std::filesystem::create_directories(path);
-  return path;
-  }
+#if defined(__ANDROID__)
+  return Tempest::AndroidApi::externalDataPath();
+#else
+  return Tempest::AndroidApi::internalDataPath();
 #endif
+}
 
 std::u16string InstallDetect::detectG2(std::u16string pfiles) {
   if(pfiles.empty())
