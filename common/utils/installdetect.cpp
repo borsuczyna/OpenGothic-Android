@@ -2,7 +2,6 @@
 #if defined __ANDROID__
 extern "C" const char* SDL_AndroidGetExternalStoragePath();
 #include <Tempest/Platform>
-
 #include <Tempest/AndroidApi>
 #endif
 
@@ -47,6 +46,7 @@ std::u16string InstallDetect::detectG2() {
     std::ifstream in(std::filesystem::path(path)/"game.txt");
     std::string   name;
     if(in && std::getline(in,name)) {
+      // Czyszczenie białych znaków i znaków końca linii z pliku game.txt
       while(!name.empty() && (name.back() == '\r' || name.back() == '\n' || name.back() == ' ' || name.back() == '\t'))
         name.pop_back();
       while(!name.empty() && (name.front() == ' ' || name.front() == '\t'))
@@ -54,9 +54,11 @@ std::u16string InstallDetect::detectG2() {
 
       if(!name.empty()) {
         if(name[0] == '/') {
+          // Obsługa ścieżki bezwzględnej (zarówno dla ZIP, jak i wybranego folderu)
           isAbsolute = true;
           folder = std::filesystem::path(name).u16string();
         } else {
+          // Tradycyjna ścieżka względna
           std::u16string chosen;
           for(char c:name) {
             const bool ok = ('a'<=c && c<='z') || ('A'<=c && c<='Z') || ('0'<=c && c<='9') || c=='_' || c=='-';
@@ -71,7 +73,7 @@ std::u16string InstallDetect::detectG2() {
     }
   }
 
-  // Jeśli to ścieżka bezwzględna, zwracamy ją bezpośrednio wprost ze wskazanego folderu
+  // Jeśli to ścieżka bezwzględna, zwracamy ją bezpośrednio wprost ze wskazanego folderu[span_2](start_span)[span_2](end_span)
   if(isAbsolute) {
     if(FileUtil::exists(folder))
       return folder;
