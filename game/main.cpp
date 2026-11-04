@@ -36,7 +36,6 @@ std::string_view selectDevice(const Tempest::AbstractGraphicsApi& api) {
 
   static Tempest::Device::Props p;
   for(auto& i:d)
-    // if(i.type==Tempest::DeviceType::Integrated) {
     if(i.type==Tempest::DeviceType::Discrete) {
       p = i;
       return p.name;
@@ -73,36 +72,55 @@ std::unique_ptr<Tempest::AbstractGraphicsApi> mkApi(const CommandLine& g) {
   }
 
 #if defined(__ANDROID__)
-static Tempest::WFile* appLogFile = nullptr; // the log of this run, to be flushed when the process ends
+static Tempest::WFile* appLogFile = nullptr; // log tej sesji
 #endif
+
 int main(int argc, const char** argv) {
 #if defined(__ANDROID__)
     {
-        auto appdir = InstallDetect::androidInternalDataPath();
-        std::filesystem::path gameDir = appdir / "gothic2"; // domyślny folder
+        // Pobrany główny katalog danych aplikacji w pamięci wewnętrznej (/data/user/0/...)
+        const std::filesystem::path appInternalDir = InstallDetect::androidInternalDataPath();
         
-        std::ifstream in(appdir / "game.txt");
-        std::string name;
-        if(in && std::getline(in, name) && !name.empty()) {
-            name.erase(name.find_last_not_of(" \n\r\t") + 1);
-            if (!name.empty() && name[0] == '/') {
-                // Jeśli to pełna ścieżka bezwzględna z nowego menedżera plików
-                gameDir = name;
+        // 1. Domyślny / Sztywny folder dla wyciągniętego ZIP-a (pamięć root aplikacji)
+        const std::filesystem::path zipExtractedDir = appInternalDir; 
+        
+        // Zmienna na docelowy katalog roboczy gry
+        std::filesystem::path finalGameDir;
+
+        // Odczytujemy zapisany wpis ze ścieżką z LauncherActivity.java (plik game.txt)
+        std::ifstream in(appInternalDir / "game.txt");
+        std::string customPath;
+        
+        if (in && std::getline(in, customPath) && !customPath.empty()) {
+            // Usunięcie ewentualnych białych znaków na końcu
+            customPath.erase(customPath.find_last_not_of(" \n\r\t") + 1);
+        }
+
+        // --- OBSŁUGA DWÓCH TRYWÓW NA SZTYWNO ---
+        if (!customPath.empty() && customPath[0] == '/') {
+            // OPTION 2: Wybrany własny folder (np. menedżer plików / karta SD / pamięć zewnętrzna)
+            // LauncherActivity zapisał pełną ścieżkę bezwzględną rozpoczynającą się od '/'
+            finalGameDir = customPath;
+            Tempest::Log::i("OpenGothic: Uruchamianie z wybranego folderu zewnętrznego: ", finalGameDir.c_str());
+        } else {
+            // OPTION 1: Uruchamianie z rozpakowanego pliku ZIP w pamięci wewnętrznej (root)
+            // Jeśli customPath jest pusty lub jest ścieżką względną
+            if (!customPath.empty()) {
+                finalGameDir = zipExtractedDir / customPath;
             } else {
-                // Stara ścieżka względna wewnątrz katalogu aplikacji
-                gameDir = appdir / name;
+                finalGameDir = zipExtractedDir; // Główny root pamięci aplikacji po wypakowaniu ZIP
+            }
+
+            Tempest::Log::i("OpenGothic: Uruchamianie z pamięci wewnętrznej (ZIP root): ", finalGameDir.c_str());
+
+            // Dla pamięci wewnętrznej upewniamy się, że struktura katalogu istnieje
+            if (!std::filesystem::exists(finalGameDir)) {
+                std::filesystem::create_directories(finalGameDir);
             }
         }
-        
-        // Tworzymy katalog tylko wtedy, gdy to ścieżka wewnętrzna i nie istnieje; 
-        // dla zewnętrznych folderów Steama zakładamy, że już istnieją.
-        if (name.empty() || name[0] != '/') {
-            if(!std::filesystem::exists(gameDir)) {
-                std::filesystem::create_directories(gameDir);
-            }
-        }
-        
-        std::filesystem::current_path(gameDir);
+
+        // Ustawienie wybranego folderu jako bieżący katalog roboczy dla silnika i zapisów (savegame)
+        std::filesystem::current_path(finalGameDir);
     }
 #elif defined(__IOS__)
     {
@@ -123,9 +141,7 @@ int main(int argc, const char** argv) {
       if(mode==Tempest::Log::Error)
         logFile.flush();
 #if defined(__ANDROID__)
-      // the engine reports a pipeline before the driver compiles it: if the driver takes the process down, the line is the last one
       if(mode==Tempest::Log::Debug) {
-        // ... and the safe GPU mode keeps its name in the lock for the next start
         SafeGpu::onLog(text);
         logFile.flush();
         }
@@ -133,7 +149,6 @@ int main(int argc, const char** argv) {
       });
     }
   catch(...) {
-    // the log is kept in the memory anyway, for the menu of the developer
     Tempest::Log::setOutputCallback([](Tempest::Log::Mode mode, const char* text) {
       GameLog::push(mode==Tempest::Log::Error ? GameLog::Error : mode==Tempest::Log::Debug ? GameLog::Debug : GameLog::Info, text);
       std::fprintf(stderr,"%s\n",text);
@@ -156,7 +171,7 @@ int main(int argc, const char** argv) {
         break;
       case zenkit::LogLevel::DEBUG:
       case zenkit::LogLevel::TRACE:
-        Tempest::Log::d("[zenkit] ", message); // unused
+        Tempest::Log::d("[zenkit] ", message);
         break;
       }
     });
@@ -197,9 +212,6 @@ int main(int argc, const char** argv) {
   Tempest::Application app;
   const int ret = app.exec();
 #if defined(__ANDROID__)
-  // The game runs in a process of its own and the process ends with it: the objects above do not have to be taken apart one by one.
-  // Their destruction crashed after the game had ended (SIGSEGV in zenkit::Vfs::~Vfs from ~Resources, Mali-G720, Android 16) and the launcher
-  // took it for a crash of the game. Nothing is kept in them that is not written already (the settings are flushed when they change).
   Tempest::Log::i("exit ",ret);
   if(appLogFile!=nullptr)
     appLogFile->flush();
