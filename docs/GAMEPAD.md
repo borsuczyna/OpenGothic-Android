@@ -32,6 +32,14 @@ Układ wzorowany na zGamePad (Gratt-5r2/zGamePad, domyślny plik `Utils/controls
 
 Przycisk trzymany w chwili zmiany ekranu należy do poprzedniego ekranu i nic nie robi, dopóki go nie puścisz.
 
+## Windows (wersja pulpitowa z interfejsem dotykowym)
+
+`common/utils/winpad.cpp`, wołane co klatkę z `Controller::update`. Najpierw XInput (pady Xbox i wszystko, co Steam Input albo DS4Windows
+pokazuje jako XInput), potem DirectInput: **DualShock 4 i DualSense** są tam widoczne bez sterownika (kwadrat 0, krzyżyk 1, kółko 2,
+trójkąt 3, L1 4, R1 5, L2 6, R2 7, Share 8, Options 9, L3 10, R3 11; lewa gałka X/Y, prawa Z/Rz, spusty z przycisków 6 i 7). Pad jest
+czytany tylko, gdy okno gry jest aktywne. Inne pady DirectInput dostają układ „stary Xbox” (A0 B1 X2 Y3 LB4 RB5 Back6 Start7 L3 8 R3 9, prawa gałka Rx/Ry,
+spusty jako oś Z). Nie sprawdzone na prawdziwym DualShocku.
+
 ## Osie na Androidzie
 
 Lewa gałka: `AXIS_X/Y`, prawa: `AXIS_Z/RZ`, spusty: `LTRIGGER/RTRIGGER` albo `BRAKE/GAS` (lub przyciski L2/R2), D-pad:

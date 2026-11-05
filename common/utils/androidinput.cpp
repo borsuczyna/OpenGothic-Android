@@ -19,6 +19,7 @@
 
 #include "gothic.h"
 #include "resources.h"
+#include "winpad.h"
 #include "scripting/modhost.h"
 
 #include "touchassets.h"
@@ -575,6 +576,9 @@ bool AndroidInput::Controller::update(Window& window, Mobile::Mode mode) {
     }
 
   controls.tick(Application::tickCount());
+#if defined(_WIN32)
+  WinPad::poll(pad);
+#endif
   pad.update(controls,mode,Application::tickCount(),padSensitivity);
   if(const int step = pad.takeCategoryStep(); step!=0 && action) {
     const int count = Mobile::CategoryCount;
