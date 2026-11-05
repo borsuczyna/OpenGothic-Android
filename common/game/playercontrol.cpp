@@ -16,6 +16,7 @@ namespace {
 
 // 25 m: the units of the world are centimeters
 constexpr float LockRange = 2500.f;
+constexpr float LockTurnSpeed = 360.f;   // degrees per second
 
 }
 
@@ -710,30 +711,41 @@ void PlayerControl::implMove(uint64_t dt) {
     return;
     }
 
+  // The lock holds the hero turned to the target all the time (not only while the action key is held): turning by hand would only
+  // fight it, so the turn input of the stick is the step to the side instead and goes around the target.
+  const bool lockFace = lockedNpc!=nullptr && ws!=WeaponState::NoWeapon && pl.isRotationAllowed();
+
   int rotation = 0;
   if(allowRot) {
-    if(this->wantsToTurnLeft()) {
-      rot += rspeed;
-      rotation = -1;
-      rotMouse=0;
-      }
-    if(this->wantsToTurnRight()) {
-      rot -= rspeed;
-      rotation = 1;
-      rotMouse=0;
-      }
-    if(std::fabs(rotMouse)>0.f) {
-      if(rotMouse>0)
-        rotation = -1; else
+    if(lockFace) {
+      rotMouse = 0;
+      } else {
+      if(this->wantsToTurnLeft()) {
+        rot += rspeed;
+        rotation = -1;
+        rotMouse=0;
+        }
+      if(this->wantsToTurnRight()) {
+        rot -= rspeed;
         rotation = 1;
-      rot += rotMouse;
-      rotMouse  = 0;
+        rotMouse=0;
+        }
+      if(std::fabs(rotMouse)>0.f) {
+        if(rotMouse>0)
+          rotation = -1; else
+          rotation = 1;
+        rot += rotMouse;
+        rotMouse  = 0;
+        }
       }
     rotY+=rotMouseY;
     } else {
     rotMouse  = 0;
     rotMouseY = 0;
     }
+
+  if(lockFace)
+    processLockRotate(pl,rot,dt);
 
   pl.setDirectionY(rotY);
   if(pl.isFalling() || pl.isSlide() || pl.isInAir() || pl.isJump() || pl.isJumpUp()){
@@ -884,10 +896,10 @@ void PlayerControl::implMove(uint64_t dt) {
       }
     }
 
-  if(this->wantsToStrafeLeft()) {
+  if(this->wantsToStrafeLeft() || (lockFace && this->wantsToTurnLeft())) {
     ani = Npc::Anim::MoveL;
     }
-  else if(this->wantsToStrafeRight()) {
+  else if(this->wantsToStrafeRight() || (lockFace && this->wantsToTurnRight())) {
     ani = Npc::Anim::MoveR;
     }
   else if(this->wantsToMoveForward()) {
@@ -1135,6 +1147,18 @@ void PlayerControl::processAutoRotate(Npc& pl, float& rot, uint64_t dt) {
       rot = pl.rotation();
       }
     }
+  }
+
+/// Turns the hero to the held target, as fast as the turn of the hero with the action key held (or faster for a slow one)
+void PlayerControl::processLockRotate(Npc& pl, float& rot, uint64_t dt) {
+  if(lockedNpc==nullptr)
+    return;
+  auto  dp   = lockedNpc->centerPosition() - pl.centerPosition();
+  auto  gl   = pl.guild();
+  float step = float(pl.world().script().guildVal().turn_speed[gl])*2.f;
+  step = std::max(step,LockTurnSpeed);
+  pl.rotateTo(dp.x,dp.z,step,AnimationSolver::TurnType::Std,dt);
+  rot = pl.rotation();
   }
 
 bool PlayerControl::validateLock() {

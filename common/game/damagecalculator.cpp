@@ -42,7 +42,7 @@ DamageCalculator::Val DamageCalculator::damageFall(Npc& npc, float speed) {
   float   gravity     = DynamicWorld::gravity;
   float   fallTime    = speed/gravity;
   float   height      = 0.5f*std::abs(gravity)*fallTime*fallTime;
-  float   h0          = float(g.falldown_height[gl]);
+  float   h0          = npc.falldownHeight();   // the same height as the one of the deep fall (the hero has more than the scripts say)
   float   dmgPerMeter = float(g.falldown_damage[gl]);
   int32_t prot        = npc.protection(::PROT_FALL);
 

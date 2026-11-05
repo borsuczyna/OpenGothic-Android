@@ -163,4 +163,5 @@ class MoveAlgo final {
     static const float   eps;
     static const int32_t flyOverWaterHint;
     static const float   waterPadd;
+    static const float   playerFalldownHeight;
   };

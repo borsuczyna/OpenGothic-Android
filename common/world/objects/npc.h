@@ -256,6 +256,7 @@ class Npc final {
     bool       isCutsceneJump() const;
     bool       isFalling() const;
     bool       isFallingDeep() const;
+    float      falldownHeight() const;
     bool       isSlide() const;
     bool       isInAir() const;
     bool       isJump() const;

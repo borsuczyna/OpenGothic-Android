@@ -13,6 +13,7 @@ const float   MoveAlgo::gravity               = DynamicWorld::gravity;
 const float   MoveAlgo::eps                   = 2.f;   // 2-santimeters
 const int32_t MoveAlgo::flyOverWaterHint      = 999999;
 const float   MoveAlgo::waterPadd             = 15;
+const float   MoveAlgo::playerFalldownHeight  = 700;   // 7 meters
 
 MoveAlgo::MoveAlgo(Npc& unit)
   :npc(unit) {
@@ -648,8 +649,12 @@ float MoveAlgo::waterDepthChest() const {
   }
 
 float MoveAlgo::falldownHeight() const {
-  auto gl = npc.guild();
-  return float(npc.world().script().guildVal().falldown_height[gl]);
+  auto  gl = npc.guild();
+  float h  = float(npc.world().script().guildVal().falldown_height[gl]);
+  // The hero falls up to 7 meters without being hurt and without the deep fall (the 5 meters of the scripts were reached by a small jump).
+  if(npc.isPlayer() && h<playerFalldownHeight)
+    h = playerFalldownHeight;
+  return h;
   }
 
 bool MoveAlgo::canFlyOverWater() const {

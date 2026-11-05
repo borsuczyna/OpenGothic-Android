@@ -1334,6 +1334,10 @@ bool Npc::isFalling() const {
   return mvAlgo.state()==MoveAlgo::Falling;
   }
 
+float Npc::falldownHeight() const {
+  return mvAlgo.falldownHeight();
+  }
+
 bool Npc::isFallingDeep() const {
   return (mvAlgo.isInAir() || mvAlgo.isFalling()) && (visual.pose().isInAnim("S_FALL") || visual.pose().isInAnim("S_FALLB"));
   }
@@ -2464,7 +2468,8 @@ void Npc::takeFallDamage(const Vec3& fallSpeed) {
       setAnim(lastHitType=='A' ? Anim::FallenA : Anim::FallenB);
       }
     }
-  auto dmg = DamageCalculator::damageFall(*this,fallSpeed.length());
+  // only the vertical speed counts: the speed of a run or a jump forward made a small drop look like a high one
+  auto dmg = DamageCalculator::damageFall(*this,std::abs(fallSpeed.y));
   if(!dmg.hasHit)
     return;
   int32_t hp = attribute(ATR_HITPOINTS);
