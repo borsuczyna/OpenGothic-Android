@@ -457,7 +457,7 @@ public final class SpineActivity extends Activity {
             } else if (blocked.containsKey(p.id)) {
                 action.setText(Texts.t("Unsupported", "Nieobsługiwany"));
                 enabled = false;
-            } else if (SpineActions.gameFor(external, p.gameType) < 0) {
+            } else if (SpineActions.gameFor(SpineActivity.this, external, p.gameType) < 0) {
                 action.setText(Texts.t("Needs ", "Wymaga ") + SpineActions.needs(p.gameType));
                 enabled = false;
             } else {

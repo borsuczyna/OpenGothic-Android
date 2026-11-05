@@ -41,6 +41,8 @@ Use legally owned installations of Gothic, Gothic II: Night of the Raven and The
 
 Make a ZIP of the installation: `Data`, `_work` and `System` have to be at the root of the archive, or in a single folder in it. Choose **Import game files** in the launcher; the files are copied to the app-specific storage, no storage permissions are needed.
 
+Or play from a folder that already is on the phone, without copying it: **Import** (or the menu of the card) > **A folder on the phone**. The launcher asks once for the access to all the files (Android 11 and newer: *All files access* in the settings; older versions: the storage permission), lists the folders and takes the one that has `Data`, `_work` and `System`. The game is played from there (the full path is the first line of `game.txt`, the engine falls back to the folders of the launcher when it is gone), the saves stay in the files of the application as before, and the folder is never changed or deleted by the launcher: the menu of the card only has **Stop using this folder**.
+
 Alternatively, copy the installation root with adb. `Data`, `_work` and `System` must be directly inside `Gothic2`.
 
 ```sh

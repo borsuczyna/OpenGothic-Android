@@ -47,6 +47,16 @@ std::u16string InstallDetect::detectG2() {
     std::ifstream in(std::filesystem::path(path)/"game.txt");
     std::string   name;
     if(in && std::getline(in,name)) {
+      // a folder of the phone that the player has chosen is a full path; if it is gone, the folders of the launcher are looked into
+      while(!name.empty() && (name.back()=='\r' || name.back()==' ' || name.back()=='\t'))
+        name.pop_back();
+      if(!name.empty() && name[0]=='/') {
+        std::error_code ec;
+        const std::filesystem::path dir(name);
+        if(std::filesystem::is_directory(dir/"Data",ec) || std::filesystem::is_directory(dir/"data",ec))
+          return dir.u16string();
+        name.clear();
+        }
       std::u16string chosen;
       for(char c:name) {
         const bool ok = ('a'<=c && c<='z') || ('A'<=c && c<='Z') || ('0'<=c && c<='9') || c=='_' || c=='-';

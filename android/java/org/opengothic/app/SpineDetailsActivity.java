@@ -451,7 +451,7 @@ public final class SpineDetailsActivity extends Activity {
             disable(primary, Texts.t("Unsupported", "Nieobsługiwany"));
         } else if (needsInfo) {
             disable(primary, Texts.t("Not available", "Niedostępny"));
-        } else if (SpineActions.gameFor(external, project.gameType) < 0) {
+        } else if (SpineActions.gameFor(this, external, project.gameType) < 0) {
             disable(primary, Texts.t("Needs ", "Wymaga ") + SpineActions.needs(project.gameType));
         } else {
             primary.setText(Texts.t("Download", "Pobierz") + (project.size > 0 ? "  (" + Downloads.size(project.size) + ")" : ""));
@@ -464,7 +464,7 @@ public final class SpineDetailsActivity extends Activity {
         }
 
         boolean canCheck = !busy && mod == null && blockedBy == null && !checked && !needsInfo
-                && SpineActions.gameFor(external, project.gameType) >= 0;
+                && SpineActions.gameFor(this, external, project.gameType) >= 0;
         check.setVisibility(canCheck ? View.VISIBLE : View.GONE);
         check.setOnClickListener(v -> {
             if (SpineActions.check(this, project))

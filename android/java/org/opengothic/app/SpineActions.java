@@ -2,6 +2,7 @@ package org.opengothic.app;
 
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.os.Build;
@@ -61,14 +62,15 @@ final class SpineActions {
 
     // ---- the games
 
-    static boolean isInstallation(File dir) {
-        return new File(dir, "Data").isDirectory() && new File(dir, "_work").isDirectory() && new File(dir, "System").isDirectory();
+    /** The folder of a game: the one the player has chosen in the launcher, or the one in the files of the application. */
+    static File rootOf(Context c, File external, int game) {
+        return GameRoots.of(c, external, GAME_FOLDERS[game]);
     }
 
     /** The index of the game that runs a mod (0 Gothic, 1 Gothic II) or -1 when it is not installed. */
-    static int gameFor(File external, int gameType) {
-        boolean g1 = isInstallation(new File(external, GAME_FOLDERS[0]));
-        boolean g2 = isInstallation(new File(external, GAME_FOLDERS[1]));
+    static int gameFor(Context c, File external, int gameType) {
+        boolean g1 = GameRoots.isInstallation(rootOf(c, external, 0));
+        boolean g2 = GameRoots.isInstallation(rootOf(c, external, 1));
         if (gameType == SpineApi.GOTHIC)
             return g1 ? 0 : -1;
         if (gameType == SpineApi.GOTHIC2)
@@ -91,7 +93,7 @@ final class SpineActions {
             Toast.makeText(a, Texts.t("Another mod is being downloaded.", "Trwa pobieranie innego moda."), Toast.LENGTH_SHORT).show();
             return false;
         }
-        if (gameFor(external, p.gameType) < 0) {
+        if (gameFor(a, external, p.gameType) < 0) {
             Toast.makeText(a, Texts.t("Install " + needs(p.gameType) + " first.", "Najpierw zainstaluj " + needs(p.gameType) + "."),
                     Toast.LENGTH_LONG).show();
             return false;
@@ -147,7 +149,7 @@ final class SpineActions {
         File external = a.getExternalFilesDir(null);
         if (external == null)
             return;
-        int game = gameFor(external, mod.gameType);
+        int game = gameFor(a, external, mod.gameType);
         if (game < 0) {
             Toast.makeText(a, Texts.t("Install " + needs(mod.gameType) + " first.", "Najpierw zainstaluj " + needs(mod.gameType) + "."),
                     Toast.LENGTH_LONG).show();
@@ -159,9 +161,9 @@ final class SpineActions {
         }
         try {
             // the files of the mod go to the folder of the game until the game is over
-            SpineActivation.activate(store.root, new File(external, GAME_FOLDERS[game]), mod);
+            SpineActivation.activate(store.root, rootOf(a, external, game), mod);
             try (OutputStream out = new FileOutputStream(new File(external, "game.txt"))) {
-                out.write((GAME_FOLDERS[game] + "\n" + mod.ini + "\n").getBytes(StandardCharsets.UTF_8));
+                out.write((GameRoots.gameTxt(a, GAME_FOLDERS[game]) + "\n" + mod.ini + "\n").getBytes(StandardCharsets.UTF_8));
             }
         } catch (IOException e) {
             SpineActivation.restore(store.root);

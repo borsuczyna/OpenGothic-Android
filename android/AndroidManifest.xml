@@ -9,10 +9,16 @@
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <!-- The update of the application from its release on GitHub (AppUpdate.java); the system still asks the player to confirm it -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <!-- A game folder of the phone is played from as it is (the launcher, "Use a folder on the phone"): Android 11 and newer ask for the
+         access to all the files in the settings, older ones for the storage permission -->
+    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" />
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="29" />
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="29" />
     <uses-feature android:name="android.hardware.vulkan.level" android:version="0" android:required="true" />
     <uses-feature android:name="android.hardware.vulkan.version" android:version="0x00401000" android:required="true" />
     <!-- The servers of the content of Steam answer on plain HTTP too: the data is encrypted and checked by Steam's own hashes -->
     <application android:label="OpenGothic" android:appCategory="game" android:hasCode="true" android:allowBackup="false" android:largeHeap="true"
+        android:requestLegacyExternalStorage="true"
         android:usesCleartextTraffic="true"
         android:resizeableActivity="true"
         android:theme="@android:style/Theme.Material.NoActionBar.Fullscreen">
