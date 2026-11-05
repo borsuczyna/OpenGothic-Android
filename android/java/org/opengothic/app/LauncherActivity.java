@@ -272,6 +272,9 @@ public final class LauncherActivity extends Activity {
             return;
         reloadSession();
         refresh();
+        // the game is over: the files of a mod from Spine leave the folder of the game
+        if (!SpineActivity.gameRunning(this))
+            SpineActivation.restore(new File(external, "spine"));
         checkGameExit();
     }
 
@@ -436,6 +439,13 @@ public final class LauncherActivity extends Activity {
         updateButton.setVisibility(View.GONE);
         updateButton.setOnClickListener(v -> showUpdate());
         header.addView(updateButton);
+
+        // the mods of Gothic from Spine
+        TextView spine = chip("Spine");
+        spine.setOnClickListener(v -> startActivity(new Intent(this, SpineActivity.class)));
+        LinearLayout.LayoutParams sp0 = new LinearLayout.LayoutParams(-2, -2);
+        sp0.setMargins(dp(10), 0, 0, 0);
+        header.addView(spine, sp0);
 
         TextView mods = chip(Texts.t("Mods", "Mody"));
         mods.setOnClickListener(v -> startActivity(new Intent(this, ModsActivity.class)));
@@ -799,6 +809,8 @@ public final class LauncherActivity extends Activity {
 
     private void play(int game) {
         lastPlayed = game;
+        // a mod from Spine that is still in the folder of the game would be loaded with the game
+        SpineActivation.restore(new File(external, "spine"));
         prefs.edit().putInt("game", game).putLong("started", System.currentTimeMillis()).apply();
         // the engine reads which of the installations it is and which mod (the ini of it): it has no command line
         try (OutputStream out = new FileOutputStream(new File(external, "game.txt"))) {

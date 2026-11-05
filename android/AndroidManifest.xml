@@ -29,6 +29,16 @@
         <activity android:name="org.opengothic.app.ModsActivity" android:exported="false"
             android:screenOrientation="landscape"
             android:configChanges="orientation|screenSize|keyboardHidden" />
+        <!-- Mods of Gothic from the database of Spine: browsing, download, play -->
+        <activity android:name="org.opengothic.app.SpineActivity" android:exported="false"
+            android:screenOrientation="landscape" android:windowSoftInputMode="adjustResize"
+            android:configChanges="orientation|screenSize|keyboardHidden" />
+        <!-- The page of a mod of Spine: pictures, description, opinions, the check for Ikarus and LeGo -->
+        <activity android:name="org.opengothic.app.SpineDetailsActivity" android:exported="false"
+            android:screenOrientation="landscape"
+            android:configChanges="orientation|screenSize|keyboardHidden" />
+        <service android:name="org.opengothic.app.SpineDownloadService" android:exported="false"
+            android:foregroundServiceType="dataSync" />
         <!-- The login to Steam, the first screen when nobody is signed in -->
         <activity android:name="org.opengothic.app.SteamLoginActivity" android:exported="false"
             android:screenOrientation="landscape" android:windowSoftInputMode="adjustResize"

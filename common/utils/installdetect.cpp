@@ -78,12 +78,17 @@ std::string InstallDetect::androidModIni() {
   if(!in || !std::getline(in,line) || !std::getline(in,ini))
     return "";
   std::string ret;
+  // the ini of a mod from Spine can have spaces and other marks in the name; it only must stay a file name in System
   for(char c:ini) {
-    const bool ok = ('a'<=c && c<='z') || ('A'<=c && c<='Z') || ('0'<=c && c<='9') || c=='_' || c=='-' || c=='.';
+    const bool ok = static_cast<unsigned char>(c)>=0x20 && c!='/' && c!='\\' && c!=':' && c!='*' && c!='?' && c!='"' && c!='<' && c!='>' && c!='|';
     if(!ok)
       break;
     ret.push_back(c);
     }
+  while(!ret.empty() && ret.back()==' ')
+    ret.pop_back();
+  if(ret=="." || ret=="..")
+    ret.clear();
   return ret;
   }
 
