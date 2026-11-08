@@ -6,6 +6,8 @@
 #include "world/bullet.h"
 #include "gothic.h"
 
+#include <Tempest/Log>
+
 // https://forum.worldofplayers.de/forum/threads/127320-Damage-System?p=2198181#post2198181
 // https://strafkolonie-online.net/forum/board/thread/1895-info-erkl%C3%A4rung-der-berechnung-der-trefferchance-im-fernkampf/
 
@@ -29,6 +31,25 @@ DamageCalculator::Val DamageCalculator::damageValue(Npc& src, Npc& other, const 
   // debug
   ret.value = MinDamage;
 #endif
+
+  {
+  // debug v2: who hits whom, what the bullet carries and what the weapon in hand says
+  auto& hs = src.handle();
+  auto& ho = other.handle();
+  Tempest::Log::d("DMG2: ",b!=nullptr ? "ranged" : "melee",
+                  " attacker='",std::string(src.displayName()),"' player=",int(src.isPlayer()),
+                  " target='",std::string(other.displayName()),"' player=",int(other.isPlayer()),
+                  " str=",src.attribute(Attribute::ATR_STRENGTH),
+                  " dex=",src.attribute(Attribute::ATR_DEXTERITY),
+                  " dtype=",damageTypeMask(src),
+                  " value=",ret.value);
+  Item* weapon = b!=nullptr ? src.currentRangedWeapon() : src.activeWeapon();
+  for(unsigned int i=0; i<zenkit::DamageType::NUM; ++i) {
+    int bulletDmg = b!=nullptr ? int(b->damage().val[i]) : int(splDmg.val[i]);
+    int itemDmg   = weapon!=nullptr ? int(weapon->handle().damage[i]) : -999;
+    Tempest::Log::d("DMG2:  type ",i," npcDamage=",hs.damage[i]," usedDmg=",bulletDmg," weaponItemDmg=",itemDmg," targetProt=",ho.protection[i]);
+    }
+  }
 
   if(ret.hasHit && !ret.invincible && Gothic::inst().version().game==2)
     ret.value = std::max<int32_t>(ret.value,MinDamage);
