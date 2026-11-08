@@ -483,9 +483,23 @@ CombatOptions ModHost::combatOptions() const {
   return CombatOptions();
   }
 
+void ModHost::refreshVisualFilter() {
+  std::vector<std::string> all;
+  for(const auto& m:list) {
+    if(m->isRunning())
+      all.insert(all.end(),m->hideVisuals.begin(),m->hideVisuals.end());
+    }
+  if(visualSink)
+    visualSink(std::move(all));
+  }
+
 void ModHost::release(Mod& mod) {
   mod.fastForward = false;
   mod.combat      = CombatOptions();
+  if(!mod.hideVisuals.empty()) {
+    mod.hideVisuals.clear();
+    refreshVisualFilter();
+    }
   if(mod.ctx==nullptr)
     return;
 

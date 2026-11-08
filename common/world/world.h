@@ -56,6 +56,9 @@ class World final {
     void                 setNpcUidMods(bool on);
     Npc*                 addNpcRemote(size_t npcInstance, const Tempest::Vec3& pos, uint32_t uid, bool puppet);
     auto                 takeShots() { return wobj.takeShots(); }
+    /// hides or shows the visuals of the static objects as VisualFilter says
+    void                 applyVisualFilter() { wobj.applyVisualFilter(); }
+    void                 visitVisuals(const std::function<void(std::string_view,bool)>& f) const { wobj.visitVisuals(f); }
     Bullet*              shootRemote(const Item& itm, const Tempest::Vec3& pos, const Tempest::Vec3& vel) { return wobj.shootRemote(itm,pos,vel); }
     uint32_t             npcCount() const;
 

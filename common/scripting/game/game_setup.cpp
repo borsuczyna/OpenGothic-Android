@@ -9,6 +9,7 @@
 
 #include "gothic.h"
 #include "scripting/modutil.h"
+#include "world/visualfilter.h"
 
 using namespace Scripting;
 
@@ -46,6 +47,10 @@ void game::setup() {
   host.logSink = [](const ModHost::LogLine& l) {
     const char* tag = l.level==ModHost::LogLine::Error ? "error" : l.level==ModHost::LogLine::Warn ? "warn" : "info";
     Tempest::Log::i("[mods][",l.source,"][",tag,"] ",l.text);
+    };
+
+  host.visualSink = [](std::vector<std::string> words) {
+    VisualFilter::inst().set(std::move(words));
     };
 
   host.binder = [](JSContext* ctx, Mod&) {

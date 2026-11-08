@@ -4,6 +4,7 @@
 #include "gothic.h"
 #include "scripting/modutil.h"
 #include "world/objects/npc.h"
+#include "world/visualfilter.h"
 #include "world/world.h"
 
 using namespace Scripting;
@@ -18,6 +19,8 @@ struct Watch {
   std::string world;
   int32_t     health     = -1;
   bool        dead       = false;
+  const World* filterWorld = nullptr;   // the world that has the hidden visuals of VisualFilter
+  uint32_t    filterRev  = 0;
   };
 
 Watch& watch() {
@@ -32,6 +35,11 @@ JSValue number(JSContext* ctx, JSValue o, const char* key, double v) {
 
 }
 
+void game::noteVisualFilter(const World* world) {
+  watch().filterWorld = world;
+  watch().filterRev   = VisualFilter::inst().revision();
+  }
+
 void game::tick() {
   const uint64_t nowMs = steadyMs();
   auto& host = ModHost::inst();
@@ -40,6 +48,17 @@ void game::tick() {
   w.last = nowMs;
 
   host.tick(nowMs);
+
+  // visuals that the mods hide: a mod has changed the list or stopped, or the world is another one. This is before the
+  // check of the running mods, because a mod that has just stopped must show the visuals again.
+  if(auto* wl = Gothic::inst().world()) {
+    const auto& vf = VisualFilter::inst();
+    if(w.filterRev!=vf.revision() || (w.filterWorld!=wl && vf.active()))
+      wl->applyVisualFilter();
+    w.filterWorld = wl;
+    w.filterRev   = vf.revision();
+    }
+
   if(host.runningCount()==0)
     return;
 

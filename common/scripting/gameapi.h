@@ -49,6 +49,8 @@ size_t      findInstance(World& world, std::string_view name);
 
 // --- events of the game for the mods, called from the main window
 void tick();
+/// The hidden visuals (VisualFilter) are applied to this world, the frame does not need to do it again
+void noteVisualFilter(const World* world);
 void keyEvent(const Tempest::KeyEvent& e, bool down);
 bool isKeyDown(std::string_view name);
 std::string keyName(int key);

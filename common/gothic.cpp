@@ -18,6 +18,7 @@
 #include "game/definitions/particlesdefinitions.h"
 
 #include "world/objects/npc.h"
+#include "game/savestore.h"
 
 #include "utils/fileutil.h"
 #include "utils/androidinput.h"
@@ -629,12 +630,20 @@ void Gothic::updateAnimation(uint64_t dt) {
     game->updateAnimation(dt);
   }
 
-void Gothic::quickSave() {
-  save(saveFileName(0),"Quick save");
+int Gothic::quickSave() {
+  std::string file;
+  const size_t n = SaveStore::nextQuick(file);
+  save(file,"Quick save "+std::to_string(n));
+  return int(n);
   }
 
 void Gothic::quickLoad() {
-  load(saveFileName(0));
+  SaveStore::Entry e;
+  if(!SaveStore::newestQuick(e)) {
+    onPrint("No quick save");
+    return;
+    }
+  load(e.file);
   }
 
 void Gothic::save(std::string_view slot, std::string_view name) {

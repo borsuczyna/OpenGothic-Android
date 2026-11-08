@@ -102,5 +102,12 @@ class SaveScreen final {
     void                  acceptRename();
 
     std::string           tr(const char* en, const char* pl) const { return polish ? pl : en; }
+    /// "Quick save 3": the quick save has several files, the number tells which one it is
+    std::string           quickTitle(const SaveStore::Entry& e) const {
+      std::string t = tr("Quick save","Szybki zapis");
+      if(e.quick>0)
+        t += " "+std::to_string(e.quick);
+      return t;
+      }
     std::string           countText(size_t n) const;
   };

@@ -64,6 +64,24 @@ Vob::~Vob() {
 void Vob::setVobVisual(bool, bool) {
   }
 
+void Vob::filterVisual() {
+  }
+
+void Vob::visualInfo(const std::function<void(std::string_view,bool)>&) const {
+  }
+
+void Vob::applyVisualFilter() {
+  filterVisual();
+  for(auto& i:child)
+    i->applyVisualFilter();
+  }
+
+void Vob::visitVisuals(const std::function<void(std::string_view,bool)>& f) const {
+  visualInfo(f);
+  for(auto& i:child)
+    i->visitVisuals(f);
+  }
+
 Vec3 Vob::position() const {
   return Vec3(pos.at(3,0),pos.at(3,1),pos.at(3,2));
   }

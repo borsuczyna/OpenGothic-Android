@@ -112,6 +112,7 @@ class Mod final {
     std::shared_ptr<void>                      netState;    // connections of the mod, see api/api_net.cpp
     bool                                       fastForward  = false;   // touch.fastForward(true)
     CombatOptions                              combat;                 // combat.configure(...)
+    std::vector<std::string>                   hideVisuals;            // world.setHiddenVisuals(...)
   };
 
 class ModHost;
@@ -177,6 +178,11 @@ class ModHost final {
     bool   fastForwardWanted() const;
     /// Options of the first running mod that has switched the combat display on (active==false when there is none)
     CombatOptions combatOptions() const;
+    /// Gives `visualSink` the words of the visuals that the running mods want hidden (world.setHiddenVisuals). Nothing
+    /// is hidden without such a mod.
+    void   refreshVisualFilter();
+    /// The game takes the words here (VisualFilter)
+    std::function<void(std::vector<std::string>)> visualSink;
 
     // --- frame
     void tick(uint64_t nowMs);

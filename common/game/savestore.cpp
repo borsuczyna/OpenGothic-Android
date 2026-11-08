@@ -34,6 +34,14 @@ std::string filePrefix() {
   return name.substr(0,name.size()-(sizeof(tail)-1));
   }
 
+/// "quicksave_" or "thechroniclesofmyrtana_quicksave_": the name of the files of the quick save without the number
+std::string quickPrefix() {
+  std::string name = filePrefix();
+  const char  tail[] = "save_slot_";
+  name.erase(name.size()-(sizeof(tail)-1));
+  return name+"quicksave_";
+  }
+
 std::string lower(std::string s) {
   for(auto& c:s)
     c = char(std::tolower(static_cast<unsigned char>(c)));
@@ -54,6 +62,20 @@ bool slotOf(const std::string& name, const std::string& prefix, size_t& slot) {
     id = id*10+size_t(low[i]-'0');
     }
   slot = id;
+  return true;
+  }
+
+/// number of the quick save in the name of the file (1..QuickSlots), false when the file is not one of them
+bool quickOf(const std::string& name, const std::string& prefix, size_t& n) {
+  const std::string low = lower(name);
+  if(low.size()!=prefix.size()+5 || low.compare(0,prefix.size(),prefix)!=0)
+    return false;
+  if(low.compare(low.size()-4,4,".sav")!=0)
+    return false;
+  const char c = low[prefix.size()];
+  if(c<'1' || size_t(c-'0')>SaveStore::QuickSlots)
+    return false;
+  n = size_t(c-'0');
   return true;
   }
 
@@ -82,6 +104,7 @@ std::vector<SaveStore::Entry> SaveStore::list() {
 
   std::vector<Entry> ret;
   const std::string  prefix = filePrefix();
+  const std::string  qprefix = quickPrefix();
   std::error_code    ec;
   std::map<std::string,bool> seen;
 
@@ -89,16 +112,20 @@ std::vector<SaveStore::Entry> SaveStore::list() {
     if(!it.is_regular_file(ec))
       continue;
     const std::string name = it.path().filename().string();
-    size_t            slot = 0;
-    if(!slotOf(name,prefix,slot))
+    size_t            slot  = 0;
+    size_t            quick = 0;
+    if(quickOf(name,qprefix,quick))
+      slot = 0;   // the files of the quick save are all "slot 0", the number is in `quick`
+    else if(!slotOf(name,prefix,slot))
       continue;
 
     const auto time = it.last_write_time(ec);
     auto&      c    = cache[name];
-    if(!c.valid || c.time!=time || c.entry.slot!=slot) {
+    if(!c.valid || c.time!=time || c.entry.slot!=slot || c.entry.quick!=int(quick)) {
       Entry e;
-      e.slot = slot;
-      e.file = name;
+      e.slot  = slot;
+      e.quick = int(quick);
+      e.file  = name;
       c.valid = readEntry(e);
       c.time  = time;
       c.entry = std::move(e);
@@ -108,6 +135,7 @@ std::vector<SaveStore::Entry> SaveStore::list() {
       continue;
 
     Entry e = c.entry;
+    e.written = int64_t(time.time_since_epoch().count());
     tm    t = e.hdr.pcTime;
     t.tm_isdst = -1;
     e.stamp = int64_t(std::mktime(&t));
@@ -133,6 +161,40 @@ std::string SaveStore::newFile() {
   for(auto& e:list())
     next = std::max(next,e.slot+1);
   return Gothic::inst().saveFileName(next);
+  }
+
+std::string SaveStore::quickFile(size_t n) {
+  return quickPrefix()+std::to_string(n)+".sav";
+  }
+
+size_t SaveStore::nextQuick(std::string& file) {
+  // the slot that was written last is known after the first save; at the start it is the newest file on the disk
+  static size_t last = 0;
+  if(last==0) {
+    int64_t newest = 0;
+    for(auto& e:list()) {
+      if(e.quick>0 && (last==0 || e.written>newest)) {
+        newest = e.written;
+        last   = size_t(e.quick);
+        }
+      }
+    }
+  last = last%QuickSlots+1;
+  file = quickFile(last);
+  return last;
+  }
+
+bool SaveStore::newestQuick(Entry& out) {
+  bool found = false;
+  for(auto& e:list()) {
+    if(!e.isQuick())
+      continue;
+    if(!found || e.written>out.written) {
+      out   = e;
+      found = true;
+      }
+    }
+  return found;
   }
 
 bool SaveStore::remove(const Entry& e) {

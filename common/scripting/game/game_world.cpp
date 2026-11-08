@@ -1,5 +1,9 @@
 #include "scripting/gameapi.h"
 
+#include <algorithm>
+#include <cctype>
+#include <map>
+
 #include "game/gametime.h"
 #include "gothic.h"
 #include "world/objects/item.h"
@@ -110,6 +114,82 @@ JSValue shoot(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv) {
   return JS_NewBool(ctx,b!=nullptr);
   }
 
+/// world.setHiddenVisuals(["GRASS", "BUSH"]): the static objects (vegetation, stones, ...) whose visual has one of these
+/// words in its name are not drawn, in this world and in the next ones. The case does not matter. An empty list shows
+/// everything again. It ends when the mod stops: without such a mod the game is vanilla. Returns how many objects of
+/// the world are hidden now.
+JSValue setHiddenVisuals(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv) {
+  auto& mod = js::mod(ctx);
+  mod.hideVisuals.clear();
+  if(argc>=1 && JS_IsArray(argv[0])) {
+    JSValue len = JS_GetPropertyStr(ctx,argv[0],"length");
+    uint32_t n = 0;
+    JS_ToUint32(ctx,&n,len);
+    JS_FreeValue(ctx,len);
+    n = std::min<uint32_t>(n,512);
+    for(uint32_t i=0; i<n; ++i) {
+      JSValue v = JS_GetPropertyUint32(ctx,argv[0],i);
+      std::string s = js::str(ctx,v);
+      JS_FreeValue(ctx,v);
+      if(!s.empty() && s.size()<=64)
+        mod.hideVisuals.push_back(std::move(s));
+      }
+    }
+  ModHost::inst().refreshVisualFilter();
+
+  auto* world = Gothic::inst().world();
+  if(world==nullptr)
+    return JS_NewInt32(ctx,0);
+  // the world changes at once, the game does not wait for the next frame
+  world->applyVisualFilter();
+  game::noteVisualFilter(world);
+  int32_t hidden = 0;
+  world->visitVisuals([&](std::string_view,bool h){ hidden += h ? 1 : 0; });
+  return JS_NewInt32(ctx,hidden);
+  }
+
+/// world.visuals(filter, max): the visuals of the static objects of this world, to find the words for setHiddenVisuals:
+/// [[name, count, hidden], ...], the most frequent first. `filter` is a part of the name.
+JSValue visuals(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv) {
+  JSValue arr   = JS_NewArray(ctx);
+  auto*   world = Gothic::inst().world();
+  if(world==nullptr)
+    return arr;
+  std::string filter = argc>=1 && !JS_IsUndefined(argv[0]) && !JS_IsNull(argv[0]) ? js::str(ctx,argv[0]) : std::string();
+  int32_t     max    = 200;
+  if(argc>=2)
+    JS_ToInt32(ctx,&max,argv[1]);
+  max = std::clamp(max,1,2000);
+  for(auto& c:filter)
+    c = char(std::toupper(static_cast<unsigned char>(c)));
+
+  std::map<std::string,std::pair<uint32_t,uint32_t>> all;
+  world->visitVisuals([&](std::string_view vis, bool hidden){
+    std::string up(vis);
+    for(auto& c:up)
+      c = char(std::toupper(static_cast<unsigned char>(c)));
+    if(!filter.empty() && up.find(filter)==std::string::npos)
+      return;
+    auto& e = all[up];
+    e.first++;
+    e.second += hidden ? 1 : 0;
+    });
+
+  std::vector<std::pair<std::string,std::pair<uint32_t,uint32_t>>> sorted(all.begin(),all.end());
+  std::stable_sort(sorted.begin(),sorted.end(),[](const auto& a, const auto& b){ return a.second.first>b.second.first; });
+  uint32_t n = 0;
+  for(auto& e:sorted) {
+    if(int32_t(n)>=max)
+      break;
+    JSValue row = JS_NewArray(ctx);
+    JS_SetPropertyUint32(ctx,row,0,JS_NewString(ctx,e.first.c_str()));
+    JS_SetPropertyUint32(ctx,row,1,JS_NewUint32(ctx,e.second.first));
+    JS_SetPropertyUint32(ctx,row,2,JS_NewBool(ctx,e.second.second>0));
+    JS_SetPropertyUint32(ctx,arr,n++,row);
+    }
+  return arr;
+  }
+
 }
 
 /// world: the name of the world, the time, the way points
@@ -123,6 +203,8 @@ void game::installWorld(JSContext* ctx) {
   js::fn(ctx,world,"changeLevel",changeLevel,2);
   js::fn(ctx,world,"takeShots",takeShots,0);
   js::fn(ctx,world,"shoot",   shoot,7);
+  js::fn(ctx,world,"setHiddenVisuals",setHiddenVisuals,1);
+  js::fn(ctx,world,"visuals", visuals,2);
   JS_SetPropertyStr(ctx,global,"world",world);
   JS_FreeValue(ctx,global);
   }

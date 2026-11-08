@@ -133,6 +133,8 @@ class WorldObjects final {
 
     void           addInteractive(Interactive*         obj);
     void           addStatic     (StaticObj*           obj);
+    void           applyVisualFilter();
+    void           visitVisuals  (const std::function<void(std::string_view,bool)>& f) const;
     void           addRoot       (const std::shared_ptr<zenkit::VirtualObject>& vob, bool startup);
     Vob*           addScriptObject(std::string_view visual, const Tempest::Matrix4x4& transform);
     void           invalidateVobIndex();
