@@ -46,7 +46,7 @@ const char* const IconFiles[AndroidInput::IconCount] = {
   "all.png", "weapons.png", "armor.png", "jewelry.png", "magic.png",
   "food.png", "potion.png", "documents.png", "misc.png",
   "use_new.png", "drop.png", "transfer_new.png", "up_new.png", "down_new.png", "inv_slot.png", "inv_slot_selected.png",
-  "skip.png", "talk.png", "target_lock.png", "fast_forward.png", "save.png"
+  "skip.png", "talk.png", "target_lock.png", "fast_forward.png", "save.png", "human.png", "transfer_all.png"
   };
 
 const char* const SettingNames[Mobile::SettingCount] = {
@@ -740,7 +740,7 @@ int AndroidInput::Controller::iconFor(const Mobile::Button& b) const {
     switch(b.key) {
       case Key::Enter:  return IconInvUse;
       case Key::Weapon: return hud.inventoryTransfer ? IconInvTransfer : IconInvDrop;
-      case Key::Jump:   return IconInvTransfer;
+      case Key::Jump:   return IconInvStack;   // the whole stack: its own icon, else it looks like the button of one item
       case Key::Up:     return IconInvUp;
       case Key::Down:   return IconInvDown;
       default:          break;
@@ -773,7 +773,7 @@ int AndroidInput::Controller::iconFor(const Mobile::Button& b) const {
     case Key::Weapon:     return game ? IconWeapon : IconTransfer;
     case Key::Up:         return game ? NoIcon : IconUp;
     case Key::Down:       return game ? NoIcon : IconDown;
-    case Key::Enter:      return game ? IconBack : IconConfirm;
+    case Key::Enter:      return game ? (b.id=="human" ? IconHuman : IconBack) : IconConfirm;
     default:              break;
     }
   return NoIcon;
@@ -889,7 +889,7 @@ void AndroidInput::Controller::paintInventoryButton(Painter& p, Font& font, size
     }
 
   frame(p,r,border,active,b.enabled);
-  const Icon id = b.key==Key::Enter ? IconInvUse : b.key==Key::Weapon ? (hud.inventoryTransfer ? IconInvTransfer : IconInvDrop) : IconInvTransfer;
+  const Icon id = b.key==Key::Enter ? IconInvUse : b.key==Key::Weapon ? (hud.inventoryTransfer ? IconInvTransfer : IconInvDrop) : IconInvStack;
   glyph(id,r,0.68f);
   }
 

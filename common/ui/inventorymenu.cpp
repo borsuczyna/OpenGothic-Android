@@ -370,6 +370,10 @@ void InventoryMenu::keyDownEvent(KeyEvent &e) {
     return;
     }
 
+  // A tap of the touch screen is a press that is released at once: it moves one stack of items once. Only a key that is
+  // really held (a keyboard, a gamepad) repeats the transfer.
+  keyFromTouch = e.code>=0x110000u;
+
 #ifndef OPENGOTHIC_TOUCH_UI
   if(int dir = categoryKeyDir(e)) {
     shiftCategory(dir);
@@ -383,7 +387,7 @@ void InventoryMenu::keyDownEvent(KeyEvent &e) {
 
   if(keycodec.tr(e)==KeyCodec::Jump) {
     lootMode = LootMode::Stack;
-    takeTimer.start(200);
+    startTakeTimer();
     onTakeStuff();
     }
   else if (keycodec.tr(e)==KeyCodec::ActionGeneric || e.key==KeyEvent::K_Return) {
@@ -400,17 +404,17 @@ void InventoryMenu::keyDownEvent(KeyEvent &e) {
     }
   else if(e.key==KeyEvent::K_Space) {
     lootMode = LootMode::Normal;
-    takeTimer.start(200);
+    startTakeTimer();
     onTakeStuff();
     }
   else if(e.key==KeyEvent::K_Z) {
     lootMode = LootMode::Ten;
-    takeTimer.start(200);
+    startTakeTimer();
     onTakeStuff();
     }
   else if(e.key==KeyEvent::K_X) {
     lootMode = LootMode::Hundred;
-    takeTimer.start(200);
+    startTakeTimer();
     onTakeStuff();
     }
 
@@ -450,6 +454,7 @@ void InventoryMenu::mouseDownEvent(MouseEvent &e) {
   if(state==State::LockPicking)
     return;
 
+  keyFromTouch = false;
   if (e.button==MouseEvent::ButtonLeft)
     onItemAction(Item::NSLOT);
   else if (e.button==MouseEvent::ButtonRight)
@@ -563,6 +568,14 @@ InventoryMenu::PageLocal &InventoryMenu::activePageSel() {
   return pageLocal[1];
   }
   
+void InventoryMenu::startTakeTimer() {
+  if(keyFromTouch) {
+    takeTimer.stop();
+    return;
+    }
+  takeTimer.start(200);
+  }
+
 void InventoryMenu::onItemAction(uint8_t slotHint) {
   infoItem.reset();
   auto& page = activePage();
@@ -585,7 +598,7 @@ void InventoryMenu::onItemAction(uint8_t slotHint) {
     }
   else if(state==State::Chest || state==State::Trade || state==State::Ransack) {
     lootMode = LootMode::Normal;
-    takeTimer.start(200);
+    startTakeTimer();
     onTakeStuff();
     }
   }
@@ -1131,12 +1144,43 @@ void InventoryMenu::drawInfoTouch(Painter& p) {
   p.setBrush(Brush(Color(0.01f,0.015f,0.02f,0.62f)));
   p.drawRect(x,y,dw,dh);
 
-  auto& fnt = Resources::font(touchTextScale());
+  auto desc = item.description();
+
+  // The panel is as wide as the space between the two lists: on a screen of another proportion (a tablet, a phone with
+  // a big font) the text of the item did not fit and ran over the lists. The scale goes down in steps (the fonts are
+  // cached by the scale, so there are only a few of them) until the widest line fits.
+  float textScale = touchTextScale();
+  {
+    const int avail = std::max(1,dw-2*in);
+    for(int n=0; n<12; ++n) {
+      auto& f = Resources::font(textScale);
+      auto& t = Resources::font(textScale*1.05f);
+      bool  fits = t.textSize(desc).w<=avail;
+      for(size_t i=0; i<Item::MAX_UI_ROWS && fits; ++i) {
+        auto txt = item.uiText(i);
+        if(txt.empty())
+          continue;
+        int32_t val = item.uiValue(i);
+        if(i+1==Item::MAX_UI_ROWS && state==State::Trade && player!=nullptr && pg.is(&player->inventory()))
+          val = item.sellCost();
+        int need = f.textSize(txt).w;
+        if(val!=0) {
+          string_frm vint(val);
+          need += f.textSize(vint).w+in;
+          }
+        fits = need<=avail;
+        }
+      if(fits)
+        break;
+      textScale *= 0.9f;
+      }
+    }
+
+  auto& fnt = Resources::font(textScale);
   const int pix = fnt.pixelSize();
 
   // title in the center
-  auto  desc  = item.description();
-  auto& title = Resources::font(touchTextScale()*1.05f);
+  auto& title = Resources::font(textScale*1.05f);
   title.drawText(p,x+(dw-title.textSize(desc).w)/2,y+int(H*0.05f)+title.pixelSize()/2,desc);
 
   // The separator of the actions. Properties are packed above it.

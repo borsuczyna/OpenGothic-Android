@@ -215,12 +215,16 @@ void PlayerControl::onKeyPressed(KeyCodec::Action a, Tempest::KeyEvent::KeyType 
   }
 
 void PlayerControl::onKeyReleased(KeyCodec::Action a, KeyCodec::Mapping mapping) {
-  ctrl[a] = false;
-
-  handleMovementAction(KeyCodec::ActionMapping{a, mapping}, false);
-
   auto w  = Gothic::inst().world();
   auto pl = w ? w->player() : nullptr;
+
+  // The key of the way back from a transformation is read by implMove() in the next tick. A tap of the touch screen
+  // presses and releases it in the same frame, so it is kept until implMove() takes it (and drops it itself).
+  const bool latch = (a==Action::K_ENTER && pl!=nullptr && pl->isTransformed());
+  if(!latch)
+    ctrl[a] = false;
+
+  handleMovementAction(KeyCodec::ActionMapping{a, mapping}, false);
 
   if(a==KeyCodec::Map && pl!=nullptr) {
     w->script().playerHotKeyScreenMap(*pl);

@@ -663,7 +663,7 @@ void GameScript::initCommon() {
       goldTxt = item->name;
       }
     //
-    tradeValMult    = 1.f;
+    tradeValMult    = 0.5f;   // Gothic 1: a trader pays the half (see Item::sellCost)
     viewTimePerChar = 550.f;
     ItKE_lockpick   = vm.find_symbol_by_name("itkelockpick");
     }
@@ -1763,6 +1763,18 @@ Attitude GameScript::personAttitude(const Npc &p0, const Npc &p1) const {
     return att;
   att = guildAttitude(p0,p1);
   return att;
+  }
+
+/// The attitude without the temporary one: the permanent attitude of the character, else the one of the guilds.
+Attitude GameScript::personAttitudeNoTemp(const Npc &p0, const Npc &p1) const {
+  if(!p0.isPlayer() && !p1.isPlayer())
+    return guildAttitude(p0,p1);
+
+  const Npc& npc = p0.isPlayer() ? p1 : p0;
+  Attitude   att = npc.attitude();
+  if(att!=ATT_NULL)
+    return att;
+  return guildAttitude(p0,p1);
   }
 
 bool GameScript::isFriendlyFire(const Npc& src, const Npc& dst) const {

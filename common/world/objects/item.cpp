@@ -335,6 +335,11 @@ int32_t Item::cost() const {
   }
 
 int32_t Item::sellCost() const {
+  if(world.version().game==1) {
+    // Gothic 1: a trader pays the half of the value, the fraction is dropped (an item of 5 is sold for 2).
+    // The prices of the trader are not changed: they stay cost().
+    return cost()/2;
+    }
   return int32_t(std::ceil(world.script().tradeValueMultiplier()*float(cost())));
   }
 

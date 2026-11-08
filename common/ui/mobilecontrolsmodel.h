@@ -105,7 +105,7 @@ inline float hotbarSlot(float buttons) {
 /// Names of the buttons of the HUD that can be moved and switched off (see Controls::hudPlace)
 constexpr const char* HudIds[] = {
   "menu", "character", "speed", "log", "map", "sneak", "walk", "stepleft", "stepright",
-  "action", "hitleft", "hitright", "block", "jump", "inventory", "target", "spells", "weapon", "quicksave"
+  "action", "hitleft", "hitright", "block", "jump", "inventory", "target", "spells", "weapon", "quicksave", "human"
   };
 constexpr int HudIdCount = int(sizeof(HudIds)/sizeof(HudIds[0]));
 

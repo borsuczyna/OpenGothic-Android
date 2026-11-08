@@ -69,7 +69,9 @@ GameMenu::MainRows GameMenu::mainRows() const {
   // under the logo and the title of the game
   float titleBottom = 0.365f*H-float(m.rowH)/2;
   {
-    int k = 0;
+    int            k = 0;
+    Tempest::Rect  first;       // the place of the first image in the script
+    Tempest::Rect  firstDraw;   // and where it is drawn
     for(const auto& it:hItems) {
       if(!it.handle || !it.visible || !it.img || it.handle->type!=zenkit::MenuItemType::TEXT ||
          isSelectable(it.handle) || isHidden(it.handle) || it.img->w()<256 || it.img->h()<=0)
@@ -78,10 +80,36 @@ GameMenu::MainRows GameMenu::mainRows() const {
         continue;
       const int iw = int(W*0.30f);
       const int ih = iw*it.img->h()/it.img->w();
-      const int cy = int(H*0.173f)+int(float(ih)*0.85f*float(k));
-      m.images.push_back(Rect(m.cx-iw/2,cy-ih/2,iw,ih));
+      const auto orig = itemRect(it);
+
+      // Two pictures that lie over each other in the script (the logo and its shadow) are drawn over each other,
+      // keeping the shift between them. Pictures that stand apart (the logo and the title) go one under another.
+      bool overlay = false;
+      if(k==1 && first.w>0 && first.h>0) {
+        const int ox = std::max(0,std::min(first.x+first.w,orig.x+orig.w)-std::max(first.x,orig.x));
+        const int oy = std::max(0,std::min(first.y+first.h,orig.y+orig.h)-std::max(first.y,orig.y));
+        const int64_t inter = int64_t(ox)*int64_t(oy);
+        const int64_t small = std::min(int64_t(first.w)*int64_t(first.h),int64_t(orig.w)*int64_t(orig.h));
+        overlay = small>0 && inter*2>=small;
+        }
+
+      Tempest::Rect draw;
+      if(overlay) {
+        const float k0 = float(firstDraw.w)/float(std::max(1,first.w));
+        const int   dx = std::clamp(int(float(orig.x-first.x)*k0),-iw/12,iw/12);
+        const int   dy = std::clamp(int(float(orig.y-first.y)*k0),-ih/4, ih/4);
+        draw = Tempest::Rect(firstDraw.x+dx,firstDraw.y+dy,iw,ih);
+        } else {
+        const int cy = int(H*0.173f)+int(float(ih)*0.85f*float(k));
+        draw = Tempest::Rect(m.cx-iw/2,cy-ih/2,iw,ih);
+        titleBottom = std::max(titleBottom,float(cy)+H*0.095f-float(m.rowH)/2);
+        }
+      if(k==0) {
+        first     = orig;
+        firstDraw = draw;
+        }
+      m.images.push_back(draw);
       m.imgTex.push_back(it.img);
-      titleBottom = std::max(titleBottom,float(cy)+H*0.095f-float(m.rowH)/2);
       ++k;
       }
   }
