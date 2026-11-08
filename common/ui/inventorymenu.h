@@ -139,6 +139,7 @@ class InventoryMenu : public Tempest::Widget {
     bool                      covered    =false;
     Tempest::Timer            takeTimer;
     size_t                    takeCount  =0;
+    bool                      keyFromTouch=false;   // the key that has started the transfer is a tap of the touch screen
     LootMode                  lootMode   =LootMode::Normal;
     InventoryRenderer         renderer;
 
@@ -189,6 +190,7 @@ class InventoryMenu : public Tempest::Widget {
     void          moveDown();
 
     void          onItemAction(uint8_t slotHint);
+    void          startTakeTimer();
     void          onTakeStuff();
     void          adjustScroll();
     void          syncScriptCategory(bool reset);

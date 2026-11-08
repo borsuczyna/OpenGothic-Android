@@ -698,10 +698,22 @@ bool Npc::checkHealth(bool onChange, bool allowUnconscious) {
 
   const int minHp = isMonster() ? 0 : 1;
   if(hnpc->attribute[ATR_HITPOINTS]<=minHp) {
-    if(currentOther==nullptr || !allowUnconscious || !isHuman() ||
-       owner.script().personAttitude(*this,*currentOther)==ATT_HOSTILE){
-      if(hnpc->attribute[ATR_HITPOINTS]<=0)
+    // Gothic 1: B_CombatReactToDamage / ZS_ReactToDamage set the TEMPORARY attitude to ATT_HOSTILE on every hit of the hero
+    // (except for friends). Counted here, it made every beaten man a dead one. Whether a man is knocked out or killed
+    // depends on the permanent attitude (and the guilds), as in the attitude of the engine without the temporary value.
+    const bool g1   = owner.version().game==1;
+    const bool hostile = currentOther!=nullptr &&
+                         (g1 ? owner.script().personAttitudeNoTemp(*this,*currentOther)
+                             : owner.script().personAttitude      (*this,*currentOther))==ATT_HOSTILE;
+    if(currentOther==nullptr || !allowUnconscious || !isHuman() || hostile){
+      if(hnpc->attribute[ATR_HITPOINTS]<=0) {
+        // a human is killed instead of being knocked out: the reason (see the attitude) goes to the log
+        if(onChange && isHuman() && currentOther!=nullptr && !isMonster())
+          Log::d("Npc::checkHealth: '",displayName().data(),"' is killed, not knocked out: allowUnconscious=",allowUnconscious,
+                 ", attitude=",int(owner.script().personAttitude(*this,*currentOther)),
+                 " (temp=",int(tempAttitude()),", perm=",int(attitude()),")");
         onNoHealth(true,HS_Dead);
+        }
       return false;
       }
 
@@ -1781,7 +1793,7 @@ bool Npc::implGoTo(uint64_t dt, float destDist) {
     }
 
   // a scene of a mod waits for the characters that it sends to the way points (AI_WaitTillEnd): one that is blocked by a collision
-  // that the scripts should have switched off would hold the scene for ever
+  // that the scripts should have switched off would hold the scene for ever.
   const Npc* player = owner.player();
   if(go2.wp!=nullptr && !isInAir() && !isSwim() && !isDive() && !isDown() && interactive()==nullptr && owner.script().hasDma() &&
      player!=nullptr && (player->position()-position()).length()<4000.f &&   // near the player: a routine or the commands of a script

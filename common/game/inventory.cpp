@@ -1067,6 +1067,15 @@ Item *Inventory::bestRangedWeapon(Npc &owner) {
 void Inventory::applyWeaponStats(Npc& owner, const Item &weapon, int sgn) {
   auto& hnpc = owner.handle();
   //hnpc.damagetype = sgn>0 ? weapon.handle()->damageType : (1 << GEngineClasses::DAM_INDEX_BLUNT);
+  if(sgn>0) {
+    // self-heal: the damage of a character without a weapon in hand cannot be below zero.
+    // a negative remainder (an unbalanced plus/minus of an earlier weapon, saved in the game) would eat the damage of this weapon
+    for(size_t i=0; i<zenkit::DamageType::NUM; ++i)
+      if(hnpc.damage[i]<0) {
+        Tempest::Log::d("DMG: reset negative base damage, type ",i," value ",hnpc.damage[i]);
+        hnpc.damage[i] = 0;
+        }
+    }
   for(size_t i=0; i<zenkit::DamageType::NUM; ++i){
     hnpc.damage[i] += sgn*weapon.handle().damage[i];
     if(weapon.handle().damage_type & (1<<i)) {
@@ -1074,9 +1083,12 @@ void Inventory::applyWeaponStats(Npc& owner, const Item &weapon, int sgn) {
       }
     }
 
-  // assert inconsistent plus/minus
+  // inconsistent plus/minus: damage of a character cannot be negative (an earlier weapon was taken off more than once)
   for(size_t i=0; i<zenkit::DamageType::NUM; ++i) {
-    assert(hnpc.damage[i]>=0);
+    if(hnpc.damage[i]<0) {
+      Tempest::Log::d("DMG: negative damage after weapon change, type ",i," value ",hnpc.damage[i]," - reset to 0");
+      hnpc.damage[i] = 0;
+      }
     }
   }
 
@@ -1153,5 +1165,3 @@ Item *Inventory::readPtr(Serialize &fin) {
     return items[v].get();
   return nullptr;
   }
-
-

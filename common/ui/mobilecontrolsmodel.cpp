@@ -478,8 +478,8 @@ void Controls::buildGame(const Anchor&) {
   icon("target",    right(372),   bottom(230),    56, "TARGET", Key::Enter, false, Special::Target);
   icon("spells",    right(372),   bottom(150),    56, "SPELLS", Key::Enter, false, Special::Spell);
   icon("weapon",    right(300),   bottom(276),    52, "WEAPON", Key::Weapon);
-  // shown only while a transformation spell is on (see MainWindow::updateMobileAvailability): turns the character back
-  icon("",          right(300),   bottom(340),    52, "HUMAN",  Key::Enter);   // no id: not a button that can be moved
+  // shown only while a transformation spell is on (see MainWindow::updateMobileAvailability): turns the character back (icon human.png)
+  icon("human",     right(300),   bottom(340),    52, "HUMAN",  Key::Enter);
 
   // The hotbar is centered below the status bars. Its slots are of the size of the buttons.
   const float slot = HotbarSlot*k;

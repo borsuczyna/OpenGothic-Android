@@ -346,7 +346,7 @@ void SaveScreen::paint(Painter& p, int W, int H) {
     std::snprintf(num,sizeof(num),"%02d",number);
     textC(fNum,numX,y+int(float(l.rowH)*0.36f),r.fresh ? "+" : num);
 
-    std::string title = r.fresh ? tr("New save","Nowy zapis") : (r.e.isQuick() ? tr("Quick save","Szybki zapis") : r.e.hdr.name);
+    std::string title = r.fresh ? tr("New save","Nowy zapis") : (r.e.isQuick() ? quickTitle(r.e) : r.e.hdr.name);
     if(title.empty())
       title = "-";
     const auto shown = fit(fName,title,textW);
@@ -423,7 +423,7 @@ void SaveScreen::paint(Painter& p, int W, int H) {
     y += int(float(H)*0.030f);
 
     auto fTitle = fontOf(true,int(float(H)*0.052f),Cream);
-    std::string name = r->fresh ? freshName : (r->e.isQuick() ? tr("Quick save","Szybki zapis") : r->e.hdr.name);
+    std::string name = r->fresh ? freshName : (r->e.isQuick() ? quickTitle(r->e) : r->e.hdr.name);
     if(name.empty())
       name = "-";
     const auto  ts   = fTitle.textSize(l.content.w,name);
@@ -503,7 +503,7 @@ void SaveScreen::paint(Painter& p, int W, int H) {
 
     if(state==State::Confirm) {
       const Row* r = current();
-      const std::string what = r!=nullptr && !r->fresh ? (r->e.isQuick() ? tr("Quick save","Szybki zapis") : r->e.hdr.name) : "";
+      const std::string what = r!=nullptr && !r->fresh ? (r->e.isQuick() ? quickTitle(r->e) : r->e.hdr.name) : "";
       const std::string head = ask==Ask::Delete ? tr("Delete save","Usu\xF1 zapis") : tr("Overwrite save","Nadpisz zapis");
       const std::string msg  = ask==Ask::Delete ? tr("This save will be gone for good.","Tego zapisu nie b\xEA" "dzie mo\xBF" "na odzyska\xE6.") :
                                                   tr("The old game of this save will be lost.","Stary stan gry w tym zapisie zostanie utracony.");

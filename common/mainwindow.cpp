@@ -1940,8 +1940,8 @@ void MainWindow::onMobileAction(int id) {
     auto* w  = Gothic::inst().world();
     if(mobileContext()==Mobile::Mode::Game && pl!=nullptr && w!=nullptr && !pl->isDown() &&
        !dialogs.isActive() && w->currentCs()==nullptr && !w->script().dmaSaveDisabled()) {
-      Gothic::inst().quickSave();
-      Gothic::inst().onPrint("Quick save");
+      const int n = Gothic::inst().quickSave();
+      Gothic::inst().onPrint("Quick save "+std::to_string(n));
       }
     return;
     }

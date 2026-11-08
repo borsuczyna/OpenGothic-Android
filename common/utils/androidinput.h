@@ -37,7 +37,7 @@ enum Icon : int {
   IconCategoryAll, IconCategoryWeapons, IconCategoryArmor, IconCategoryJewelry, IconCategoryMagic,
   IconCategoryFood, IconCategoryPotion, IconCategoryDocuments, IconCategoryMisc,
   IconInvUse, IconInvDrop, IconInvTransfer, IconInvUp, IconInvDown, IconInvSlot, IconInvSlotSelected,
-  IconSkip, IconTalk, IconTargetLock, IconFastForward, IconSave,
+  IconSkip, IconTalk, IconTargetLock, IconFastForward, IconSave, IconHuman, IconInvStack,
   IconCount
   };
 

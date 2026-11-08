@@ -1,5 +1,8 @@
 #pragma once
 
+#include <functional>
+#include <string_view>
+
 #include <Tempest/Matrix4x4>
 #include <Tempest/Vec>
 
@@ -44,7 +47,15 @@ class Vob {
     virtual void  setVobVisual(bool show, bool collideDynamic);
     virtual float extendedSearchRadius() const;
 
+    /// The visuals that a mod asks to hide (VisualFilter) are hidden or shown again: this vob and all its children
+    void          applyVisualFilter();
+    /// Calls f(name of the visual, hidden by the filter) for the static objects of this vob and its children
+    void          visitVisuals(const std::function<void(std::string_view,bool)>& f) const;
+
   protected:
+    virtual void  filterVisual();
+    virtual void  visualInfo(const std::function<void(std::string_view,bool)>& f) const;
+
     World&                            world;
     zenkit::VirtualObjectType         vobType     = zenkit::VirtualObjectType::UNKNOWN;
     uint32_t                          vobObjectID = uint32_t(-1);

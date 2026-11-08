@@ -829,6 +829,16 @@ void WorldObjects::addStatic(StaticObj* obj) {
   objStatic.push_back(obj);
   }
 
+void WorldObjects::applyVisualFilter() {
+  for(auto& i:rootVobs)
+    i->applyVisualFilter();
+  }
+
+void WorldObjects::visitVisuals(const std::function<void(std::string_view,bool)>& f) const {
+  for(auto& i:rootVobs)
+    i->visitVisuals(f);
+  }
+
 void WorldObjects::addRoot(const std::shared_ptr<zenkit::VirtualObject>& vob, bool startup) {
   auto p = Vob::load(nullptr,owner,*vob,(startup ? Vob::Startup : Vob::None) | Vob::Static);
   if(p==nullptr)
