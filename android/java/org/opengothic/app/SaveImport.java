@@ -125,9 +125,13 @@ final class SaveImport {
             next++;
         slots.add(next);
 
+        // a quick save that is added separately becomes a normal slot: the quick saves that are there stay untouched
         String originalName = original.getName();
-        int marker = originalName.toLowerCase(Locale.ROOT).lastIndexOf("save_slot_");
-        String prefix = marker >= 0 ? originalName.substring(0, marker) : "";
+        String prefix = SaveExport.prefixOf(originalName);
+        if (prefix == null)
+            prefix = "";
+        else
+            prefix = originalName.substring(0, prefix.length());
         return new File(original.getParentFile(), prefix + "save_slot_" + next + ".sav");
     }
 
@@ -195,7 +199,8 @@ final class SaveImport {
                 continue;
             try {
                 int marker = name.lastIndexOf("save_slot_");
-                slots.add(Integer.parseInt(name.substring(marker + 10, name.length() - 4)));
+                if (marker >= 0)
+                    slots.add(Integer.parseInt(name.substring(marker + 10, name.length() - 4)));
             } catch (RuntimeException ignored) {
                 // not a numbered slot
             }
