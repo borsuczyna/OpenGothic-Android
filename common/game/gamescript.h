@@ -20,6 +20,8 @@
 #include "game/questlog.h"
 #include "game/damagecalculator.h"
 
+namespace zenkit { struct SaveState; }
+
 class GameSession;
 class World;
 class DirectMemory;
@@ -168,6 +170,7 @@ class GameScript final {
                                 const DamageCalculator::Damage& damage) -> DmaDamage;
     void         dmaDamageEnd(Npc& victim, DmaDamage& d);
     auto         questLog() const -> const QuestLog&;
+    void         importOriginal(const zenkit::SaveState& st, Npc& hero);
     /// The chapter of the story (KAPITEL of the scripts), 0 when the scripts have none
     int          chapter() const;
 

@@ -171,6 +171,13 @@ void AbstractTrigger::save(Serialize& fout) const {
   fout.write(ticksEnabled);
   }
 
+void AbstractTrigger::importOriginal(int32_t countLeft, bool enabled) {
+  disabled = !enabled;
+  // the original engine counts down from the limit, a limit of -1 is no limit at all
+  if(maxActivationCount!=uint32_t(-1) && maxActivationCount>0)
+    emitCount = maxActivationCount - uint32_t(std::clamp<int32_t>(countLeft,0,int32_t(maxActivationCount)));
+  }
+
 void AbstractTrigger::load(Serialize& fin) {
   Vob::load(fin);
   boxNpc.load(fin);

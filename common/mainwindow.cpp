@@ -20,6 +20,7 @@
 #include "world/triggers/abstracttrigger.h"
 #include "world/objects/npc.h"
 #include "world/objects/item.h"
+#include "game/originalsave.h"
 #include "game/serialize.h"
 #include "game/globaleffects.h"
 #include "game/definitions/musicdefinitions.h"
@@ -1237,6 +1238,8 @@ uint64_t MainWindow::tick() {
   if(st==Gothic::LoadState::Finalize || st==Gothic::LoadState::FailedLoad || st==Gothic::LoadState::FailedSave) {
     const std::string failure = Gothic::inst().loadError();
     Gothic::inst().finishLoading();
+    if(st==Gothic::LoadState::Finalize && OriginalSave::takeSaveName(importedSaveName))
+      importedSaveDelay = 30; // a few frames, the save takes a picture of the screen
     if(st==Gothic::LoadState::FailedLoad) {
       // the game was dropped by the start of loading: nothing to continue, back to the menu with the reason on the screen
       rootMenu.setMainMenu();
@@ -1260,6 +1263,12 @@ uint64_t MainWindow::tick() {
   video.tick();
   if(video.isActive())
     return 0;
+
+  if(importedSaveDelay>0 && --importedSaveDelay==0 && Gothic::inst().isInGame()) {
+    // an imported original save gets a slot of its own right away: it is on the list of the saves like any other
+    Gothic::inst().save(SaveStore::newFile(),importedSaveName);
+    importedSaveName.clear();
+    }
 
   if(Gothic::inst().isPause()) {
     return 0;
@@ -1449,6 +1458,17 @@ void MainWindow::startGame(std::string_view slot) {
 
   Gothic::inst().startLoad(banner,[slot=std::string(slot)](std::unique_ptr<GameSession>&& game){
     game = nullptr; // clear world-memory now
+    OriginalSave original;
+    if(OriginalSave::pending(original)) {
+      try {
+        return std::unique_ptr<GameSession>(new GameSession(original));
+        }
+      catch(const std::exception& e) {
+        // the next New game is a plain one; the reason is on the screen
+        OriginalSave::retire(original,false,"");
+        throw std::runtime_error(std::string("original save import: ")+e.what());
+        }
+      }
     std::unique_ptr<GameSession> w(new GameSession(slot));
     return w;
     });

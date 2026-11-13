@@ -139,6 +139,7 @@ class World final {
     bool                 testFocusNpc(Npc *def);
 
     void                 triggerOnStart(bool firstTime);
+    void                 dropTriggerEvents() { wobj.dropTriggerEvents(); }
     void                 triggerEvent(const TriggerEvent& e);
     void                 triggerChangeWorld(std::string_view world, std::string_view wayPoint);
     void                 execTriggerEvent(const TriggerEvent& e);

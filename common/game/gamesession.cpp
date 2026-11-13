@@ -150,6 +150,7 @@ GameSession::GameSession(Serialize &fin) {
   fin.setStage("game/session");
   fin.requireEntry("game/session");
   fin.read(ticks,wrldTime,wrldTimePart,wname);
+  playTimeOffset = hdr.playTime>ticks ? hdr.playTime-ticks : 0;
 
   cam.reset(new Camera());
   vm.reset(new GameScript(*this));
@@ -213,7 +214,7 @@ void GameSession::save(Serialize &fout, std::string_view name, const Pixmap& scr
   hdr.pcTime = *tp;
   }
   hdr.wrldTime  = wrldTime;
-  hdr.playTime  = ticks;
+  hdr.playTime  = playTime();
   hdr.isGothic2 = Gothic::inst().version().game;
 
   fout.setEntry("header");

@@ -60,6 +60,9 @@ class AbstractTrigger : public Vob {
     void                         save(Serialize& fout) const override;
     void                         load(Serialize &fin) override;
 
+    /// The state of an original save: how many times it has fired yet and whether it is enabled
+    void                         importOriginal(int32_t countLeft, bool enabled);
+
   protected:
     struct Cb : DynamicWorld::BBoxCallback {
       Cb(AbstractTrigger* tg):tg(tg) {}

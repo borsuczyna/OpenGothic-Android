@@ -18,6 +18,7 @@ class ParticleFx;
 class VisualFx;
 class WorldStateStorage;
 class VersionInfo;
+struct OriginalSave;
 class GthFont;
 
 class GameSession final {
@@ -26,6 +27,7 @@ class GameSession final {
     GameSession(const GameSession&)=delete;
     GameSession(std::string file);
     GameSession(Serialize&  fin);
+    GameSession(const OriginalSave& src);
     ~GameSession();
 
     void         save(Serialize& fout, std::string_view name, const Tempest::Pixmap &screen);
@@ -57,6 +59,7 @@ class GameSession final {
     void         setTime(gtime t);
     void         tick(uint64_t dt);
     uint64_t     tickCount() const { return ticks; }
+    uint64_t     playTime() const { return ticks+playTimeOffset; }
 
     void         setTimeMultiplyer(float t);
 
@@ -98,6 +101,7 @@ class GameSession final {
     std::unique_ptr<World>         wrld;
 
     uint64_t                       ticks = 0, wrldTimePart = 0;
+    uint64_t                       playTimeOffset = 0;
     uint64_t                       timeMul = 1000, timeMulFract = 0;
     gtime                          wrldTime;
 

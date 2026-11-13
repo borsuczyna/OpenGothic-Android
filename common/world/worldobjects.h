@@ -109,6 +109,7 @@ class WorldObjects final {
     void           enableDefTrigger(AbstractTrigger& trigger);
     void           triggerEvent(const TriggerEvent& e);
     bool           triggerOnStart(bool firstTime);
+    void           dropTriggerEvents();
     void           execDelayedEvents();
     bool           execTriggerEvent(const TriggerEvent& e);
     void           enableTicks (AbstractTrigger& t);

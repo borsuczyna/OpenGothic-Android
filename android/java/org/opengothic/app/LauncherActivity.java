@@ -62,6 +62,7 @@ public final class LauncherActivity extends Activity {
     private static final int REQUEST_EXPORT_SAVES = 4;
     private static final int REQUEST_IMPORT_SAVES = 5;
     private static final int REQUEST_STORAGE = 6;
+    private static final int REQUEST_ORIGINAL_SAVE = 7;
     private static final String[] SAVE_GAMES = {
             "Gothic 1", "Gothic 2", "Gothic 2 Noc Kruka", "Gothic 2 Kroniki Myrtany"
     };
@@ -399,6 +400,12 @@ public final class LauncherActivity extends Activity {
             ownedAsked = false;
             reloadSession();
             refresh();
+            return;
+        }
+        if (request == REQUEST_ORIGINAL_SAVE) {
+            if (result != RESULT_OK || data == null || data.getData() == null)
+                return;
+            runOriginalSaveImport(data.getData());
             return;
         }
         if (request == REQUEST_IMPORT_SAVES || request == REQUEST_EXPORT_SAVES) {
@@ -923,7 +930,7 @@ public final class LauncherActivity extends Activity {
                 .setTitle(Texts.t("Save management", "Zarządzanie zapisami"))
                 .setItems(new CharSequence[] {
                         Texts.t("Export saves to ZIP", "Eksportuj zapisy do ZIP"),
-                        Texts.t("Import saves from ZIP", "Importuj zapisy z ZIP")
+                        Texts.t("Import saves", "Importuj zapisy")
                 }, (dialog, which) -> {
                     if (which == 0)
                         exportSaves();
@@ -960,24 +967,86 @@ public final class LauncherActivity extends Activity {
                 .setTitle(Texts.t("Choose game in archive", "Wybierz grę z archiwum"))
                 .setItems(games, (dialog, game) -> {
                     saveGameId = ids[game];
-                    final String[] modes = {
-                            Texts.t("Overwrite saves with matching names", "Nadpisz zapisy o tych samych nazwach"),
-                            Texts.t("Add all saves as separate slots", "Dodaj wszystkie zapisy jako osobne sloty")
-                    };
+                    // saves of the original game are only read for Gothic II, they are imported on their own
+                    if ("gothic2".equals(ids[game]) || "gothic2_notr".equals(ids[game]))
+                        chooseSaveSource();
+                    else
+                        chooseImportMode();
+                })
+                .setNegativeButton(Texts.t("Cancel", "Anuluj"), null)
+                .show();
+    }
+
+    /** OpenGothic saves come from a ZIP, the original ones from a save folder of the original game. */
+    private void chooseSaveSource() {
+        new AlertDialog.Builder(this)
+                .setTitle(Texts.t("Choose source of saves", "Wybór źródła zapisów"))
+                .setItems(new CharSequence[] {
+                        "OpenGothic",
+                        Texts.t("Original game", "Oryginał")
+                }, (dialog, which) -> {
+                    if (which == 0) {
+                        chooseImportMode();
+                        return;
+                    }
                     new AlertDialog.Builder(this)
-                            .setTitle(Texts.t("Import saves", "Import zapisów"))
-                            .setItems(modes, (d, which) -> {
-                                saveImportMode = which == 0 ? SaveImport.OVERWRITE : SaveImport.ADD_SEPARATELY;
-                                Intent open = new Intent(Intent.ACTION_OPEN_DOCUMENT);
-                                open.addCategory(Intent.CATEGORY_OPENABLE);
-                                open.setType("application/zip");
-                                startActivityForResult(open, REQUEST_IMPORT_SAVES);
+                            .setTitle(Texts.t("Original save", "Zapis z oryginału"))
+                            .setMessage(Texts.t(
+                                    "Choose one save folder of the original Gothic II, like Saves/savegame1. "
+                                            + "It is imported at the next New game and saved as a new slot.",
+                                    "Wybierz jeden folder zapisu z oryginalnego Gothica II, np. Saves/savegame1. "
+                                            + "Zostanie wczytany przy następnej Nowej grze i zapisany jako nowy slot."))
+                            .setPositiveButton(Texts.t("Choose folder", "Wybierz folder"), (d, w) -> {
+                                Intent open = new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
+                                startActivityForResult(open, REQUEST_ORIGINAL_SAVE);
                             })
                             .setNegativeButton(Texts.t("Cancel", "Anuluj"), null)
                             .show();
                 })
                 .setNegativeButton(Texts.t("Cancel", "Anuluj"), null)
                 .show();
+    }
+
+    /** The import of a ZIP made by the export: overwrite the saves or add them as separate slots. */
+    private void chooseImportMode() {
+        final String[] modes = {
+                Texts.t("Overwrite saves with matching names", "Nadpisz zapisy o tych samych nazwach"),
+                Texts.t("Add all saves as separate slots", "Dodaj wszystkie zapisy jako osobne sloty")
+        };
+        new AlertDialog.Builder(this)
+                .setTitle(Texts.t("Import saves", "Import zapisów"))
+                .setItems(modes, (d, which) -> {
+                    saveImportMode = which == 0 ? SaveImport.OVERWRITE : SaveImport.ADD_SEPARATELY;
+                    Intent open = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+                    open.addCategory(Intent.CATEGORY_OPENABLE);
+                    open.setType("application/zip");
+                    startActivityForResult(open, REQUEST_IMPORT_SAVES);
+                })
+                .setNegativeButton(Texts.t("Cancel", "Anuluj"), null)
+                .show();
+    }
+
+    /** Copies the chosen original save folder into the Gothic II installation on a thread. */
+    private void runOriginalSaveImport(final Uri tree) {
+        final File root = rootOf(1);
+        new Thread(() -> {
+            String failure = null;
+            try {
+                OriginalSaveImport.copy(this, tree, root);
+            } catch (IOException | RuntimeException e) {
+                failure = e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
+            }
+            final String error = failure;
+            runOnUiThread(() -> new AlertDialog.Builder(this)
+                    .setTitle(Texts.t("Original save", "Zapis z oryginału"))
+                    .setMessage(error != null ? error : Texts.t(
+                            "The save is ready. Start Gothic II and choose New game: the original save is loaded and "
+                                    + "saved as a new slot on the list of the saves.",
+                            "Zapis jest gotowy. Uruchom Gothic II i wybierz Nową grę: zapis z oryginału zostanie "
+                                    + "wczytany i zapisany jako nowy slot na liście zapisów."))
+                    .setPositiveButton("OK", null)
+                    .show());
+        }, "original-save-import").start();
     }
 
     private void cardMenu(final int game, View anchor) {

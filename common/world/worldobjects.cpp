@@ -635,6 +635,10 @@ void WorldObjects::enableDefTrigger(AbstractTrigger& t) {
   triggersDef.push_back(&t);
   }
 
+void WorldObjects::dropTriggerEvents() {
+  triggerEvents.clear();
+  }
+
 bool WorldObjects::triggerOnStart(bool firstTime) {
   bool ret = false;
   TriggerEvent evt("","",firstTime ? TriggerEvent::T_StartupFirstTime : TriggerEvent::T_Startup);
