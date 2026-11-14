@@ -27,6 +27,7 @@ struct State {
   std::mutex        sync;
   std::atomic<int>  level{SafeGpu::Normal};
   std::atomic<bool> noHiz{false};
+  std::atomic<bool> noBindless{false};
   std::string       identity;
   std::FILE*        lock   = nullptr;
   int               armed  = 0;
@@ -45,6 +46,7 @@ struct Saved {
   std::string identity;
   std::string shader;
   bool        noHiz = false;
+  bool        noBindless = false;
   };
 
 Saved readFile(const char* name) {
@@ -70,6 +72,8 @@ Saved readFile(const char* name) {
       r.shader = val;
     else if(key=="nohiz")
       r.noHiz = (val=="1");
+    else if(key=="nobindless")
+      r.noBindless = (val=="1");
     }
   r.valid = !r.identity.empty();
   return r;
@@ -80,7 +84,7 @@ void removeFile(const char* name) {
   std::filesystem::remove(name,ec);
   }
 
-void writeMode(const std::string& identity, int level, const std::string& shader, bool noHiz) {
+void writeMode(const std::string& identity, int level, const std::string& shader, bool noHiz, bool noBindless) {
   std::ofstream out(ModeFile,std::ios::trunc);
   if(!out) {
     Log::e("Safe GPU mode: unable to write ",ModeFile," (it will be forgotten after the next start)");
@@ -90,16 +94,18 @@ void writeMode(const std::string& identity, int level, const std::string& shader
   out << "gpu="   << identity << "\n";
   out << "shader=" << shader << "\n";
   out << "nohiz=" << (noHiz ? 1 : 0) << "\n";
+  out << "nobindless=" << (noBindless ? 1 : 0) << "\n";
   }
 
-/// The crash.log of a death in a command of the driver (not in its compiler, so the lock knows nothing): the stack names the build of HiZ.
-/// The log tells the GPU of the crash ("GPU: Adreno (TM) 618"), another GPU is not the reason to leave HiZ.
-bool crashInHiZ(const std::string& identity) {
+/// The crash.log of a death in a command of the driver (not in its compiler, so the lock knows nothing): the stack names the function of
+/// the program that gave the command (the build of HiZ, the descriptor set of the bindless pipelines).
+/// The log tells the GPU of the crash ("GPU: Adreno (TM) 618"), another GPU is not the reason to change anything.
+bool crashMentions(const std::string& identity, const char* function) {
   std::ifstream in(CrashFile);
   if(!in)
     return false;
   const std::string text((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
-  if(text.find("buildHiZ")==std::string::npos)
+  if(text.find(function)==std::string::npos)
     return false;
   const auto gpu = text.find("GPU: ");
   if(gpu!=std::string::npos) {
@@ -109,6 +115,10 @@ bool crashInHiZ(const std::string& identity) {
       return false;
     }
   return true;
+  }
+
+bool crashInHiZ(const std::string& identity) {
+  return crashMentions(identity,"buildHiZ");
   }
 
 /// the crash.log that is newer than the lock: the crash handler has seen the death (not a kill of the application by the user)
@@ -157,12 +167,14 @@ void SafeGpu::init(std::string_view gpuName) {
 
   int         level  = Normal;
   bool        noHiz  = false;
+  bool        noBindless = false;
   std::string shader;
   const Saved mode = readFile(ModeFile);
   if(mode.valid) {
     if(mode.identity==s.identity) {
       level  = std::clamp(mode.level,int(Normal),int(Minimal));
       noHiz  = mode.noHiz;
+      noBindless = mode.noBindless;
       shader = mode.shader;
       } else {
       Log::i("Safe GPU mode: the saved state is of another GPU (",mode.identity.c_str(),"), ignored");
@@ -182,7 +194,7 @@ void SafeGpu::init(std::string_view gpuName) {
       if(level==Safe && crashed)
         level = Minimal;
       shader = lock.shader;
-      writeMode(s.identity,level,shader,noHiz);
+      writeMode(s.identity,level,shader,noHiz,noBindless);
       } else {
       Log::i("Safe GPU mode: the lock is of another GPU (",lock.identity.c_str(),"), ignored");
       }
@@ -192,7 +204,14 @@ void SafeGpu::init(std::string_view gpuName) {
   if(!noHiz && crashInHiZ(s.identity)) {
     noHiz = true;
     Log::e("Safe GPU mode: the previous start died in the build of HiZ (crash.log), HiZ is off for ",s.identity.c_str());
-    writeMode(s.identity,level,shader,noHiz);
+    writeMode(s.identity,level,shader,noHiz,noBindless);
+    }
+
+  // the death in the descriptor set of the bindless pipelines (VPoolCache::allocBindless, PowerVR D-Series): the same GPU does without bindless
+  if(!noBindless && crashMentions(s.identity,"allocBindless")) {
+    noBindless = true;
+    Log::e("Safe GPU mode: the previous start died in the descriptor set of the bindless pipelines (crash.log), bindless is off for ",s.identity.c_str());
+    writeMode(s.identity,level,shader,noHiz,noBindless);
     }
 
   if(forced==1)
@@ -202,6 +221,7 @@ void SafeGpu::init(std::string_view gpuName) {
 
   s.level = level;
   s.noHiz = noHiz;
+  s.noBindless = noBindless;
   s.ready = true;
   if(level!=Normal)
     Log::e("Safe GPU mode: level ",level," for ",s.identity.c_str(),
@@ -216,6 +236,10 @@ bool SafeGpu::noHiZ() {
   // The minimal level draws no occluders either, and the logs of 0.8.3 (Adreno 618 and 650, both at level 2) died in the build of the
   // pyramid of the depth that nobody has drawn: the pyramid is not made then, the main view is culled without it.
   return state().noHiz.load() || level()>=Minimal;
+  }
+
+bool SafeGpu::noBindless() {
+  return state().noBindless.load();
   }
 
 void SafeGpu::trace(std::string_view shader) {

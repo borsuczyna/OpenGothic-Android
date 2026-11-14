@@ -37,6 +37,10 @@ class SafeGpu final {
     /// of HiZ (a command of the dispatch, not the compiler: no lock, but the crash.log of the previous start names Renderer::buildHiZ)
     static bool  noHiZ();
 
+    /// the pipelines with the slots are used, not the bindless ones: after a death in the descriptor set of the bindless pipelines (the crash.log of the previous
+    /// start names VPoolCache::allocBindless: PowerVR D-Series, vulkan.powervr.so). Only that GPU; the minimal level does without bindless anyway
+    static bool  noBindless();
+
     /// the shader that is going to be compiled by the driver now; the name stays in the lock if the driver kills the process
     static void  trace(std::string_view shader);
 
