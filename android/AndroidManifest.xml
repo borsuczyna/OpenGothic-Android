@@ -18,7 +18,7 @@
     <uses-feature android:name="android.hardware.vulkan.version" android:version="0x00401000" android:required="true" />
     <!-- The servers of the content of Steam answer on plain HTTP too: the data is encrypted and checked by Steam's own hashes -->
     <!-- userLandscape: landscape both ways, the screen turns by 180 degrees with the auto-rotate of the phone (a pad that is clamped to the phone the other way up); when the user has locked the rotation, it stays -->
-    <application android:label="OpenGothic" android:appCategory="game" android:hasCode="true" android:allowBackup="false" android:largeHeap="true"
+    <application android:label="OpenGothic" android:icon="@mipmap/ic_launcher" android:appCategory="game" android:hasCode="true" android:allowBackup="false" android:largeHeap="true"
         android:requestLegacyExternalStorage="true"
         android:usesCleartextTraffic="true"
         android:resizeableActivity="true"
