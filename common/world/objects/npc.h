@@ -607,6 +607,7 @@ class Npc final {
 
     bool      isPlayerEnabledState(const ::AiState& st) const;
     void      tickRoutine();
+    void      tickAggroLeash();
     void      nextAiAction(AiQueue& queue, uint64_t dt);
     void      commitDamage();
     Npc*      updateNearestEnemy();
@@ -739,6 +740,7 @@ class Npc final {
     Npc*                           currentLookAtNpc=nullptr;
     Npc*                           currentTarget  =nullptr;
     Npc*                           nearestEnemy   =nullptr;
+    uint64_t                       aggroLostSince =0;  // since when the target of the monster is out of its senses range (0 = it is not)
     AiOuputPipe*                   outputPipe     =nullptr;
 
     Tempest::Vec3                  moveMobCacheKey={};

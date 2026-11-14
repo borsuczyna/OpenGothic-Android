@@ -2954,6 +2954,8 @@ void Npc::tick(uint64_t dt) {
   if(!randomAni.empty() && !isDead())
     tickRandomAni();
 
+  tickAggroLeash();
+
   if(compatDiveLimit>=0) {
     // Gothic counts remaining milliseconds down under water, and refills them
     // at twice that rate outside it. CoM's Dive10 buff writes 30000/31000 every
@@ -3808,6 +3810,57 @@ void Npc::tickRoutine() {
     }
   }
 
+void Npc::tickAggroLeash() {
+  // A monster has to give up when its target runs away. The scripts do it in the original game, but here some monsters
+  // (swamp sharks, snappers, ...) follow the character over the whole map. This is a safety net that does not depend on
+  // the script: the target is out of the senses range for a long time -> the monster loses it.
+  // Two kinds of the chase:
+  //  - the fight state (ZS_MM_Attack) with the target;
+  //  - the slow walk to the enemy (AI_GotoNpc) before the fight. The script loop of the state does not run while the
+  //    monster walks, so the script can not stop this walk itself.
+  static const uint64_t LOST_TIME_MS = 6000;
+  static const float    MIN_RANGE    = 1500;   // cm
+
+  Npc* tg = nullptr;
+  if(!isPlayer() && !isDown() && !isTalk()) {
+    if(currentTarget!=nullptr && (owner.script().isMonsterAttack(*this) || (isMonster() && isAttack())))
+      tg = currentTarget;
+    else if(go2.npc!=nullptr && go2.flag==GT_Way && isMonster() && isEnemy(*go2.npc))
+      tg = go2.npc;
+    }
+  if(tg==nullptr || tg->isDown()) {
+    aggroLostSince = 0;
+    return;
+    }
+
+  const float range = std::max(float(hnpc->senses_range), MIN_RANGE);
+  if(qDistTo(*tg)<=range*range) {
+    aggroLostSince = 0;
+    return;
+    }
+
+  const uint64_t now = owner.tickCount();
+  if(aggroLostSince==0) {
+    aggroLostSince = now;
+    Log::i("[AGGRO] [",displayName().data(),"] [",tg->displayName().data(),"] is out of range ",int(std::sqrt(qDistTo(*tg)))," > ",int(range),
+           ", state ",(aiState.funcIni.isValid() ? aiState.hint : "none"),(tg==currentTarget ? ", fight" : ", walk to the enemy"));
+    return;
+    }
+  if(now-aggroLostSince<LOST_TIME_MS)
+    return;
+
+  Log::i("[AGGRO] [",displayName().data(),"] loses [",tg->displayName().data(),"]: out of range ",int(std::sqrt(qDistTo(*tg)))," > ",int(range),
+         " for ",(now-aggroLostSince)/1000," s, state ",(aiState.funcIni.isValid() ? aiState.hint : "none")," (state time ",stateTime()/1000," s)");
+
+  aggroLostSince = 0;
+  clearAiQueue();      // also stops the walk to the enemy
+  clearState(false);   // ZS_MM_Attack_End; the routine of the monster starts on the next tick
+  currentOther  = nullptr;
+  currentVictim = nullptr;
+  nearestEnemy  = nullptr;
+  setTarget(nullptr);
+  fghAlgo.onClearTarget();
+  }
 void Npc::setTarget(Npc *t) {
   if(currentTarget==t)
     return;

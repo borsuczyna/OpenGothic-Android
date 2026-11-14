@@ -1680,6 +1680,10 @@ bool GameScript::isAttack(const Npc& pl) const {
   return pl.isInState(ZS_Attack) || pl.isInState(ZS_MM_Attack);
   }
 
+bool GameScript::isMonsterAttack(const Npc& pl) const {
+  return ZS_MM_Attack!=0 && pl.isInState(ZS_MM_Attack);
+  }
+
 std::string_view GameScript::messageFromSvm(std::string_view id, int voice) const {
   return svm->find(id,voice);
   }
