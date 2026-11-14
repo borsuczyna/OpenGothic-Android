@@ -1301,6 +1301,9 @@ uint64_t MainWindow::tick() {
       clearInput();
     if(i==0)
       tickMouse(dt);
+#ifdef OPENGOTHIC_TOUCH_UI
+    player.setPadMove(androidControls.moveYaw(),androidControls.moveSide());
+#endif
     player.tickMove(step);
     }
   update();

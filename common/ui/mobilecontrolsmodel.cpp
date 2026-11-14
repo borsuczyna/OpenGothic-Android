@@ -867,6 +867,7 @@ void Controls::cancel() {
   padHeld_.fill(false);
   joyHeld.fill(false);
   joyX = joyY = 0;
+  padYaw = padSide = 0;
   joyActive = false;
   for(auto& p:fingers)
     p.second.blocked = true;

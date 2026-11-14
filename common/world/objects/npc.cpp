@@ -572,6 +572,13 @@ void Npc::setRunAngle(float angle) {
   runAng = angle;
   }
 
+void Npc::setMoveYaw(float angle) {
+  if(moveYawDeg==angle)
+    return;
+  durtyTranform |= TR_Rot;
+  moveYawDeg = angle;
+  }
+
 float Npc::angleDir(float x, float z) {
   float a = 0;
   if(x!=0.f || z!=0.f)
@@ -5843,7 +5850,7 @@ Matrix4x4 Npc::mkPositionMatrix() const {
   Matrix4x4 mt = Matrix4x4();
   mt.identity();
   mt.translate(x,y,z);
-  mt.rotateOY(90-angle);
+  mt.rotateOY(90-angle-(isPlayer() ? moveYawDeg : 0.f));
   if(angY!=0)
     mt.rotateOX(-angY);
   if(isPlayer() && !align) {

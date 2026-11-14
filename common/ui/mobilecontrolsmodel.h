@@ -211,6 +211,10 @@ class Controls {
     void  padKey(Key key, bool down);
     void  padTap(Key key) { pulse(key); }
     void  padLook(float yaw, float pitch);
+    /// The left stick of a gamepad: the angle of a diagonal walk (degrees, 0 straight ahead, the sign of the angle of the hero: positive to the left) and the push to the side (-1..1, positive to the right)
+    void  padMove(float yaw, float side) { padYaw = yaw; padSide = side; }
+    float moveYaw() const { return padYaw; }
+    float moveSide() const { return padSide; }
     void  padSpecial(int id);
     bool  padHeld(Key key) const { return padHeld_[size_t(key)]; }
     /// The key does something now (the weapon is in the hand, ...): the buttons of the screen hide the others
@@ -297,6 +301,7 @@ class Controls {
     float    width  = 1000, height = 500;
     float    scale  = 1;
     float    joyX   = 0, joyY = 0;
+    float    padYaw = 0, padSide = 0;
     float    joyOx  = 0, joyOy = 0;
     bool     joyActive = false;
     float    lookSensitivity = 1;

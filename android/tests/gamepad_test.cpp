@@ -93,21 +93,16 @@ void sideTurn() {
     r.frame(100);
   CHECK(r.count(Event::Down,Key::StrafeRight)==0 && r.count(Event::Down,Key::StrafeLeft)==0);
   CHECK(r.count(Event::Down,Key::Up)==0);
-  CHECK(std::abs(r.yaw()-100.f)<1.f);     // 1 s of the full deflection; the sign of the right stick
+  CHECK(std::abs(r.yaw()-100.f)<1.f);     // 1 s of the full deflection
   CHECK(r.pitch()==0);
+  CHECK(r.c.moveYaw()==0 && r.c.moveSide()>0.99f);
 
   r.clear();
   r.pad.axes(-1,0,0,0,0,0);
   for(int i=0; i<10; ++i)
     r.frame(100);
   CHECK(std::abs(r.yaw()+100.f)<1.f);
-
-  // a small lateral deviation while walking does not turn
-  r.clear();
-  r.pad.axes(0.2f,-1,0,0,0,0);
-  r.frame(100);
-  CHECK(r.count(Event::Down,Key::Up)==1);
-  CHECK(r.yaw()==0);
+  CHECK(r.c.moveSide()<-0.99f);
 
   // the right stick turns faster than the left one
   Rig q;
@@ -121,19 +116,61 @@ void sideTurn() {
     q.frame(100);
   CHECK(q.yaw()>left);
 
-  // diagonal: forward and a turn together, an arc
+  // back and to the side: a back step and a turn, no diagonal
+  Rig b;
+  b.pad.axes(0.8f,0.8f,0,0,0,0);
+  for(int i=0; i<10; ++i)
+    b.frame(100);
+  CHECK(b.count(Event::Down,Key::Down)==1);
+  CHECK(b.yaw()>20.f);
+  CHECK(b.c.moveYaw()==0);
+  }
+
+void diagonal() {
+  // straight ahead and a small lateral deviation walk straight and do not turn
+  Rig r;
+  r.pad.axes(0,-1,0,0,0,0);
+  r.frame();
+  CHECK(r.c.moveYaw()==0);
+  r.pad.axes(0.2f,-1,0,0,0,0);
+  r.frame(100);
+  CHECK(r.count(Event::Down,Key::Up)==1);
+  CHECK(r.yaw()==0);
+  CHECK(r.c.moveYaw()==0);
+
+  // forward and to the right: a diagonal walk, the hero does not turn and does not step to the side
   Rig d;
   d.pad.axes(0.8f,-0.8f,0,0,0,0);
   for(int i=0; i<10; ++i)
     d.frame(100);
   CHECK(d.count(Event::Down,Key::Up)==1);
-  CHECK(d.yaw()>20.f && d.yaw()<100.f);
+  CHECK(d.yaw()==0);
   CHECK(d.count(Event::Down,Key::StrafeRight)==0);
+  CHECK(std::abs(d.c.moveYaw()+45.f)<1.f);   // the angle of the hero grows to the left: the right is negative
+  d.pad.axes(-0.8f,-0.8f,0,0,0,0);
+  d.frame(100);
+  CHECK(std::abs(d.c.moveYaw()-45.f)<1.f);
+
+  // a steep diagonal is held at the limit
+  d.pad.axes(1,-0.45f,0,0,0,0);
+  d.frame(100);
+  CHECK(d.count(Event::Down,Key::Up)>=1);
+  CHECK(d.c.moveYaw()<0 && d.c.moveYaw()>=-70.01f);
+
+  // the stick is let go: straight again
   d.pad.axes(0,0,0,0,0,0);
   d.frame();
+  CHECK(d.c.moveYaw()==0 && d.c.moveSide()==0);
   CHECK(d.count(Event::Up,Key::Up)==1);
-  }
 
+  // a change of the screen drops the diagonal
+  Rig s;
+  s.pad.axes(0.8f,-0.8f,0,0,0,0);
+  s.frame();
+  CHECK(s.c.moveYaw()!=0);
+  s.frameIn(Mode::Menu);
+  CHECK(s.c.moveYaw()==0 && s.c.moveSide()==0);
+  }
 void camera() {
   Rig r;
   r.pad.axes(0,0,1,0,0,0);
@@ -376,6 +413,7 @@ void badInput() {
 int main() {
   leftStick();
   sideTurn();
+  diagonal();
   camera();
   buttons();
   bumpers();

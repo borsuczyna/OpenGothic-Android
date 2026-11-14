@@ -114,6 +114,9 @@ class Controller {
     const Tempest::Sprite&     icon(Icon id) const { return icons.at(size_t(id)); }
     const std::vector<Mobile::Button>& buttons() const { return controls.buttons(); }
     bool  settingsVisible() const { return controls.settingsVisible(); }
+    /// The left stick of a gamepad: the angle of a diagonal walk and the push to the side, see Mobile::Controls::padMove
+    float moveYaw() const { return controls.moveYaw(); }
+    float moveSide() const { return controls.moveSide(); }
 
     Hud   hud;
 

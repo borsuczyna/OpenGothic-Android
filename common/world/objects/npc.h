@@ -91,6 +91,10 @@ class Npc final {
     void       setDirection(float rotation);
     void       setDirectionY(float rotation);
     void       setRunAngle  (float angle);
+    /// A diagonal walk of the player (gamepad): the way goes this many degrees off the direction of the hero, the body turns to it
+    void       setMoveYaw   (float angle);
+    float      moveYaw() const { return moveYawDeg; }
+    float      moveYawRad() const { return moveYawDeg*0.017453293f; }
 
     auto       transform()  const -> Tempest::Matrix4x4;
     auto       position()   const -> Tempest::Vec3;
@@ -769,6 +773,7 @@ class Npc final {
 
     float                          angleY   = 0.f;
     float                          runAng   = 0.f;
+    float                          moveYawDeg = 0.f;
 
     Sound                          sfxWeapon;
 

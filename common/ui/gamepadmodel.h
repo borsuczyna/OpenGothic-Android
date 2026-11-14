@@ -8,7 +8,8 @@
 /// A gamepad as a source of the same events as the touch controls. Has no Android/renderer dependencies, so it can be tested on the host.
 ///
 /// The scheme follows zGamePad (the plugin of Union by Gratt), with the camera on the right stick:
-///   game      left stick  walk and back as the touch stick (a stick to the side turns the character, a diagonal walks along an arc)
+///   game      left stick  walk where the stick points (a diagonal is a walk off the direction of the hero, the hero does not turn);
+///                         a stick to the side or back turns the character as the touch stick does; the target locked: a side step
 ///             right stick camera, faster than that turn; R3 target; L3 sneak
 ///             A / RT      action (talk, take, attack, shoot, cast), held
 ///             B / LT      block, held
