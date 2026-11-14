@@ -8,12 +8,14 @@ using namespace Mobile;
 namespace {
 
 constexpr float    StickDead     = 0.18f;   // the dead zone of the left stick, the rest of the travel is scaled to 0..1
+constexpr float    StickTurnDead = 0.30f;   // the left stick turns the hero only past this sideways deflection: walking straight stays straight
+constexpr float    StickTurnRate = 100.f;   // degrees per second at the full sideways deflection of the left stick (as the touch stick)
 constexpr float    LookDead      = 0.15f;
 constexpr float    LookYawRate   = 150.f;   // degrees per second at the full deflection of the right stick
 constexpr float    LookPitchRate = 90.f;
 constexpr float    LookCurve     = 1.6f;    // a small deflection moves the camera slower than a linear one: aiming
 constexpr float    MoveOn        = 0.30f, MoveOff = 0.20f;
-constexpr float    SideOn        = 0.35f, SideOff = 0.25f;
+
 constexpr float    MenuOn        = 0.55f, MenuOff = 0.40f;
 constexpr float    TriggerOn     = 0.50f, TriggerOff = 0.30f;
 constexpr uint64_t RepeatDelay   = 380;    // ms before a held direction repeats in a menu
@@ -117,15 +119,18 @@ void Gamepad::update(Controls& controls, Mode next, uint64_t now, float look) {
   }
 
 void Gamepad::game(Controls& c, float dt, float look) {
-  // Left stick: forward, back and the side steps. The character turns with the right stick, so a push to the side is a strafe.
+  // Left stick as the touch one: forward and back, a push to the side turns the hero (a diagonal is a walk along an arc).
+  // Next to a locked target the turn becomes a step to the side, see PlayerControl.
   float sx = 0, sy = 0;
   radial(lx,ly,StickDead,sx,sy);
-  c.padKey(Key::Up,         hysteresis(moveUp,   -sy,MoveOn,MoveOff));
-  c.padKey(Key::Down,       hysteresis(moveDown,  sy,MoveOn,MoveOff));
-  c.padKey(Key::StrafeLeft, hysteresis(moveLeft, -sx,SideOn,SideOff));
-  c.padKey(Key::StrafeRight,hysteresis(moveRight, sx,SideOn,SideOff));
+  c.padKey(Key::Up,   hysteresis(moveUp,  -sy,MoveOn,MoveOff));
+  c.padKey(Key::Down, hysteresis(moveDown, sy,MoveOn,MoveOff));
+  if(std::abs(sx)>StickTurnDead) {
+    const float turn = std::copysign((std::abs(sx)-StickTurnDead)/(1.f-StickTurnDead),sx);
+    c.padLook(turn*StickTurnRate*dt,0);
+    }
 
-  // Right stick: the camera
+  // Right stick: the camera, faster than the turn of the left one
   float cx = 0, cy = 0;
   radial(rx,ry,LookDead,cx,cy);
   if(cx!=0 || cy!=0) {

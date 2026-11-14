@@ -79,32 +79,59 @@ void leftStick() {
   r.frame();
   CHECK(r.count(Event::Down,Key::Up)==1);
   CHECK(r.count(Event::Down,Key::StrafeLeft)==0 && r.count(Event::Down,Key::StrafeRight)==0);
+  CHECK(r.yaw()==0);                 // straight ahead does not turn
   r.pad.axes(0.05f,-0.1f,0,0,0,0);   // inside of the dead zone
   r.frame();
   CHECK(r.count(Event::Up,Key::Up)==1);
   }
 
-void strafe() {
+void sideTurn() {
+  // a push to the side turns the hero as the touch stick does, never a step to the side
   Rig r;
   r.pad.axes(1,0,0,0,0,0);
-  r.frame();
-  CHECK(r.count(Event::Down,Key::StrafeRight)==1);
+  for(int i=0; i<10; ++i)
+    r.frame(100);
+  CHECK(r.count(Event::Down,Key::StrafeRight)==0 && r.count(Event::Down,Key::StrafeLeft)==0);
   CHECK(r.count(Event::Down,Key::Up)==0);
-  CHECK(r.yaw()==0);                 // the left stick never turns the character
-  r.pad.axes(-1,0,0,0,0,0);
-  r.frame();
-  CHECK(r.count(Event::Up,Key::StrafeRight)==1);
-  CHECK(r.count(Event::Down,Key::StrafeLeft)==1);
+  CHECK(std::abs(r.yaw()-100.f)<1.f);     // 1 s of the full deflection; the sign of the right stick
+  CHECK(r.pitch()==0);
 
-  // diagonal: forward and a side step together
   r.clear();
-  r.pad.axes(0.8f,-0.8f,0,0,0,0);
-  r.frame();
+  r.pad.axes(-1,0,0,0,0,0);
+  for(int i=0; i<10; ++i)
+    r.frame(100);
+  CHECK(std::abs(r.yaw()+100.f)<1.f);
+
+  // a small lateral deviation while walking does not turn
+  r.clear();
+  r.pad.axes(0.2f,-1,0,0,0,0);
+  r.frame(100);
   CHECK(r.count(Event::Down,Key::Up)==1);
-  CHECK(r.count(Event::Down,Key::StrafeRight)==1);
-  r.pad.axes(0,0,0,0,0,0);
-  r.frame();
-  CHECK(r.count(Event::Up,Key::StrafeRight)==1 && r.count(Event::Up,Key::Up)==1);
+  CHECK(r.yaw()==0);
+
+  // the right stick turns faster than the left one
+  Rig q;
+  q.pad.axes(1,0,0,0,0,0);
+  for(int i=0; i<10; ++i)
+    q.frame(100);
+  const float left = q.yaw();
+  q.clear();
+  q.pad.axes(0,0,1,0,0,0);
+  for(int i=0; i<10; ++i)
+    q.frame(100);
+  CHECK(q.yaw()>left);
+
+  // diagonal: forward and a turn together, an arc
+  Rig d;
+  d.pad.axes(0.8f,-0.8f,0,0,0,0);
+  for(int i=0; i<10; ++i)
+    d.frame(100);
+  CHECK(d.count(Event::Down,Key::Up)==1);
+  CHECK(d.yaw()>20.f && d.yaw()<100.f);
+  CHECK(d.count(Event::Down,Key::StrafeRight)==0);
+  d.pad.axes(0,0,0,0,0,0);
+  d.frame();
+  CHECK(d.count(Event::Up,Key::Up)==1);
   }
 
 void camera() {
@@ -348,7 +375,7 @@ void badInput() {
 
 int main() {
   leftStick();
-  strafe();
+  sideTurn();
   camera();
   buttons();
   bumpers();
