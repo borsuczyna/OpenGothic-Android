@@ -325,7 +325,7 @@ void Controls::buildSettings(const Anchor& a) {
   static const char* labels[SettingCount] = {
     "Button size", "3D resolution", "Shadow quality", "SSAO effects",
     "FPS limit", "Joystick deadzone", "Camera sensitivity", "Vibration", "GUI scale",
-    "Fast forward", "HP/Mana numbers", "XP counter", "Side step buttons"
+    "Fast forward", "HP/Mana numbers", "XP counter", "Step buttons"
     };
   // The speed is not a part of the vanilla game: its row is there only when a mod has asked for it
   std::vector<int> rows;
@@ -463,10 +463,14 @@ void Controls::buildGame(const Anchor&) {
   stick = {left(153.5f)-stickSize/2,bottom(166.5f)-stickSize/2,stickSize,stickSize};
   icon("sneak",     left(61),  bottom(36.5f), 50, "SNEAK", Key::Sneak);
   icon("walk",      left(123), bottom(36.5f), 50, "WALK",  Key::Walk);
-  // side steps, right next to the floating stick: an option of the settings
+  // step buttons, right next to the floating stick: an option of the settings. The side steps, and the arrows forward and back
+  // (the back one is the jump back of the fight) over and under them: smaller, to stand between the bars of the status and the
+  // upper buttons, and to leave no overlap.
   if(featureStrafe) {
-    icon("stepleft",  left(284), bottom(166.5f), 56, "< STEP", Key::StrafeLeft,  true);
-    icon("stepright", left(350), bottom(166.5f), 56, "STEP >", Key::StrafeRight, true);
+    icon("stepleft",    left(284), bottom(166.5f), 56, "< STEP",   Key::StrafeLeft,  true);
+    icon("stepright",   left(350), bottom(166.5f), 56, "STEP >",   Key::StrafeRight, true);
+    icon("stepforward", left(317), bottom(219),    44, "FORWARD",  Key::Up,          true);
+    icon("stepback",    left(317), bottom(114),    44, "BACK STEP",Key::Down,        true);
     }
 
   icon("action",    right(198),   bottom(221.5f), 88, "ACTION", Key::Action, true);

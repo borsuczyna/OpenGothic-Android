@@ -2046,8 +2046,11 @@ void MainWindow::updateMobileAvailability() {
           allowed |= keyMask(Key::Action);
         if(melee)
           allowed |= keyMask(Key::AttackLeft) | keyMask(Key::AttackRight) | keyMask(Key::Block);
-        if(armed)
+        if(armed) {
           allowed |= keyMask(Key::StrafeLeft) | keyMask(Key::StrafeRight);
+          // the arrows forward and back with the side steps (the back one is the jump back of the fight)
+          allowed |= keyMask(Key::Up) | keyMask(Key::Down);
+          }
 
         target = armed;
 

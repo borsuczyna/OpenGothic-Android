@@ -200,7 +200,7 @@ std::string settingText(int setting, const std::string& label) {
   if(setting==Mobile::SettingHudXp)
     return value ? "XP counter: ON" : "XP counter: OFF";
   if(setting==Mobile::SettingStrafe)
-    return value ? "Side step buttons: ON" : "Side step buttons: OFF";
+    return value ? "Step buttons: ON" : "Step buttons: OFF";
   if(setting==Mobile::SettingSpeed)
     return label+"   "+std::to_string(value/100)+"."+std::to_string(value%100/10)+"x";
 
@@ -771,8 +771,8 @@ int AndroidInput::Controller::iconFor(const Mobile::Button& b) const {
     case Key::Sneak:      return IconSneak;
     case Key::Inventory:  return IconInventory;
     case Key::Weapon:     return game ? IconWeapon : IconTransfer;
-    case Key::Up:         return game ? NoIcon : IconUp;
-    case Key::Down:       return game ? NoIcon : IconDown;
+    case Key::Up:         return game && b.id!="stepforward" ? NoIcon : IconUp;
+    case Key::Down:       return game && b.id!="stepback"    ? NoIcon : IconDown;
     case Key::Enter:      return game ? (b.id=="human" ? IconHuman : IconBack) : IconConfirm;
     default:              break;
     }

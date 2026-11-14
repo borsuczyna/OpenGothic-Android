@@ -561,6 +561,39 @@ void strafeButtons() {
   CHECK(!button(c,Key::StrafeLeft).visible && !button(c,Key::StrafeRight).visible);
   }
 
+// The arrows forward and back stand with the side steps: held while the finger is down, counted with the stick
+void stepArrows() {
+  Controls c;
+  c.configure(2400,1080,Mode::Game);
+  c.resetPointers();
+  c.drain();
+
+  press(c,Key::Up,1);
+  auto e = c.drain();
+  CHECK(e.size()==1 && e[0].kind==Event::Down && e[0].key==Key::Up);
+  CHECK(c.held(Key::Up));
+  press(c,Key::Down,2);
+  CHECK(c.held(Key::Down));
+  lift(c,Key::Down,2);
+  CHECK(!c.held(Key::Down));
+
+  // the stick holds the same key: the arrow lets it go, the stick keeps it
+  stickPush(c,3,0.f,-0.45f);
+  CHECK(c.held(Key::Up));
+  lift(c,Key::Up,1);
+  CHECK(c.held(Key::Up));
+  c.up(3,0,0);
+  CHECK(!c.held(Key::Up));
+  c.drain();
+
+  // hidden when the keys are not usable (no weapon in the hand): a finger on them does nothing
+  c.availability(~(keyMask(Key::Up)|keyMask(Key::Down)),true,true,true);
+  CHECK(!button(c,Key::Up).visible && !button(c,Key::Down).visible);
+  CHECK(button(c,Key::StrafeLeft).visible);
+  c.availability(~uint64_t(0),true,true,true);
+  CHECK(button(c,Key::Up).visible && button(c,Key::Down).visible);
+  }
+
 void resetStress() {
   // No held controls survive a reset, whatever the mode transitions in between.
   Controls c;
@@ -644,8 +677,11 @@ void sideStepOption() {
   Controls c;
   c.configure(2400,1080,Mode::Game);
   CHECK(hasKey(c,Key::StrafeLeft) && hasKey(c,Key::StrafeRight));
+  // the arrows forward and back are a part of the same option
+  CHECK(hasKey(c,Key::Up) && hasKey(c,Key::Down));
   c.features(false,false);
   CHECK(!hasKey(c,Key::StrafeLeft) && !hasKey(c,Key::StrafeRight));
+  CHECK(!hasKey(c,Key::Up) && !hasKey(c,Key::Down));
   CHECK(hasKey(c,Key::Jump));
   }
 
@@ -744,6 +780,44 @@ void hudEditor() {
   CHECK(hasKey(e,Key::Map) && !byId(e,"map").dimmed);
   }
 
+// The arrows forward and back are buttons of the HUD like the rest: they are moved and hidden in the editor, the places are kept
+void stepArrowsInEditor() {
+  Controls c;
+  c.configure(2400,1080,Mode::Menu);
+  c.resetPointers();
+  tap(c,special(c,Special::Settings).rect,2);
+  tap(c,special(c,Special::EditHud).rect,3);
+  c.drain();
+  CHECK(c.editingHud());
+  CHECK(byId(c,"stepforward").key==Key::Up && byId(c,"stepback").key==Key::Down);
+
+  // a drag moves one, nothing of the game is pressed
+  const auto  r  = byId(c,"stepforward").rect;
+  const float tx = 1200, ty = 150;
+  c.down(1,cx(r),cy(r),T0);
+  c.move(1,tx,ty);
+  c.up(1,tx,ty);
+  CHECK(!c.held(Key::Up));
+  CHECK(c.hudPlaces().at("stepforward").placed);
+  CHECK(std::abs(cx(byId(c,"stepforward").rect)-tx)<1.f && std::abs(cy(byId(c,"stepforward").rect)-ty)<1.f);
+
+  // a hold hides the other one; it is gone from the game, the side steps stay
+  hold(c,byId(c,"stepback").rect);
+  CHECK(byId(c,"stepback").dimmed && c.hudPlaces().at("stepback").hidden);
+  tap(c,special(c,Special::HudDone).rect);
+  c.configure(2400,1080,Mode::Game);
+  CHECK(hasKey(c,Key::Up) && !hasKey(c,Key::Down));
+  CHECK(hasKey(c,Key::StrafeLeft) && hasKey(c,Key::StrafeRight));
+
+  // the places come from the settings of another start
+  auto saved = c.hudPlaces();
+  Controls d;
+  d.configure(1280,720,Mode::Game);
+  d.hudPlaces(saved);
+  CHECK(hasKey(d,Key::Up) && !hasKey(d,Key::Down));
+  CHECK(std::abs(cx(button(d,Key::Up).rect)/1280.f-tx/2400.f)<0.01f);
+  }
+
 // The buttons of the HUD are solid in the editor: they cannot lie on each other
 void hudEditorCollision() {
   auto dist = [](const Rect& a, const Rect& b) { return std::hypot(cx(a)-cx(b),cy(a)-cy(b)); };
@@ -824,6 +898,7 @@ int main() {
   hotbarFollowsButtons();
   hudEditorCollision();
   hudEditor();
+  stepArrowsInEditor();
   menuSwipeDoesNotConfirm();
   explicitConfirmation();
   gameMultitouch();
@@ -837,6 +912,7 @@ int main() {
   menuGestures();
   availabilityKeepsMovement();
   strafeButtons();
+  stepArrows();
   speedButton();
   inventoryActions();
   settingsAreIsolated();
