@@ -60,8 +60,11 @@ final class SteamSession implements Closeable {
     static {
         // JavaSteam asks for the provider "BC" by name (SHA-1, AES of the content). Android has a "BC" of its own with the
         // algorithms taken out and a provider of a name that is taken is not added, so the old one has to go first.
+        // The provider goes to the END of the list: JavaSteam finds it by the name. At the first place it would take the
+        // keystores and the certificates of the whole application, and the TLS of everything else (Spine, the update) failed
+        // with "NoSuchAlgorithmException: Error constructing implementation (algorithm: Default ..." until the application was closed.
         Security.removeProvider("BC");
-        Security.insertProviderAt(new BouncyCastleProvider(), 1);
+        Security.addProvider(new BouncyCastleProvider());
     }
 
     /** What the player has to be asked for. The answers are given from any thread. */
