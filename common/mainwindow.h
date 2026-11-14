@@ -220,4 +220,6 @@ class MainWindow : public Tempest::Window {
     Fps           fps;
     BenchmarkData benchmark;
     uint64_t      maxFpsInv = 0;
+    std::string importedSaveName;
+    int         importedSaveDelay = 0;
   };

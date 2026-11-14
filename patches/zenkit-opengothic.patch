@@ -13,6 +13,31 @@ index 17a81ee..6055808 100644
  		ZKAPI void unsafe_jump(uint32_t address);
  		ZKAPI std::shared_ptr<DaedalusInstance> unsafe_get_gi();
  		ZKAPI void unsafe_set_gi(std::shared_ptr<DaedalusInstance> i);
+diff --git a/include/zenkit/Object.hh b/include/zenkit/Object.hh
+index 5c77969..c5cd607 100644
+--- a/include/zenkit/Object.hh
++++ b/include/zenkit/Object.hh
+@@ -68,6 +68,7 @@ namespace zenkit {
+ 		zCMorphMesh,
+ 		oCAIHuman,
+ 		oCAIVobMove,
++		oCAIArrow,
+ 		oCCSPlayer,
+ 		zCSkyControler_Outdoor,
+ 		oCWorld,
+diff --git a/include/zenkit/SaveGame.hh b/include/zenkit/SaveGame.hh
+index 4753c0e..4c7b4a2 100644
+--- a/include/zenkit/SaveGame.hh
++++ b/include/zenkit/SaveGame.hh
+@@ -121,6 +121,8 @@ namespace zenkit {
+ 		std::vector<SaveSymbolState> symbols;
+ 		std::vector<SaveLogTopic> log;
+ 		std::uint8_t guild_attitudes[42][42];
++		/// The whole table as stored; Gothic II writes more than 42 guilds per row.
++		std::vector<std::uint8_t> guild_table_raw;
+ 
+ 		ZKINT void load(ReadArchive& r, GameVersion version);
+ 		ZKINT void save(WriteArchive& w, GameVersion version) const;
 diff --git a/include/zenkit/addon/daedalus.hh b/include/zenkit/addon/daedalus.hh
 index 0773c39..3fed760 100644
 --- a/include/zenkit/addon/daedalus.hh
@@ -32,6 +57,62 @@ index 0773c39..3fed760 100644
  		ZKAPI static void register_(DaedalusScript& s);
  	};
  
+diff --git a/include/zenkit/vobs/Misc.hh b/include/zenkit/vobs/Misc.hh
+index e572dbd..bc712a3 100644
+--- a/include/zenkit/vobs/Misc.hh
++++ b/include/zenkit/vobs/Misc.hh
+@@ -542,6 +542,7 @@ namespace zenkit {
+ 		std::string packed[packed_count];
+ 		std::vector<std::unique_ptr<News>> news;
+ 		std::vector<std::shared_ptr<VItem>> items;
++		std::vector<int32_t> item_short_keys;
+ 		std::vector<std::unique_ptr<Slot>> slots;
+ 
+ 		bool current_state_valid;
+diff --git a/include/zenkit/vobs/VirtualObject.hh b/include/zenkit/vobs/VirtualObject.hh
+index 325bed2..74d0ec8 100644
+--- a/include/zenkit/vobs/VirtualObject.hh
++++ b/include/zenkit/vobs/VirtualObject.hh
+@@ -242,6 +242,17 @@ namespace zenkit {
+ 		ZKAPI void save(WriteArchive& w, GameVersion version) const override;
+ 	};
+ 
++	/// A flying arrow. Its owner may be the first occurrence of a character in the archive.
++	struct AiArrow final : Ai {
++		ZK_OBJECT(ObjectType::oCAIArrow);
++
++		std::shared_ptr<Object> vob;
++		std::shared_ptr<Object> arrow;
++		std::shared_ptr<Object> owner;
++
++		ZKAPI void load(ReadArchive& r, GameVersion version) override;
++	};
++
+ 	enum class VirtualObjectType {
+ 		UNKNOWN = -1,
+ 		zCVob = 0,           ///< The base type for all VObs.
+diff --git a/src/Archive.cc b/src/Archive.cc
+index 8797a87..50b4ecd 100644
+--- a/src/Archive.cc
++++ b/src/Archive.cc
+@@ -82,6 +82,7 @@ namespace zenkit {
+ 	    {"zCMorphMesh", ObjectType::zCMorphMesh},
+ 	    {"oCAIHuman:oCAniCtrl_Human:zCAIPlayer", ObjectType::oCAIHuman},
+ 	    {"oCAIVobMove", ObjectType::oCAIVobMove},
++	    {"oCAIArrow:oCAIArrowBase", ObjectType::oCAIArrow},
+ 	    {"oCCSPlayer:zCCSPlayer", ObjectType::oCCSPlayer},
+ 	    {"zCSkyControler_Outdoor", ObjectType::zCSkyControler_Outdoor},
+ 	    {"zCWayNet", ObjectType::zCWayNet},
+@@ -318,6 +319,9 @@ namespace zenkit {
+ 		case ObjectType::oCAIHuman:
+ 			syn = std::make_shared<AiHuman>();
+ 			break;
++		case ObjectType::oCAIArrow:
++			syn = std::make_shared<AiArrow>();
++			break;
+ 		case ObjectType::oCAIVobMove:
+ 			syn = std::make_shared<AiMove>();
+ 			break;
 diff --git a/src/DaedalusVm.cc b/src/DaedalusVm.cc
 index 0b4420e..ee4d7f4 100644
 --- a/src/DaedalusVm.cc
@@ -199,3 +280,70 @@ index 0b4420e..ee4d7f4 100644
  		}
  	}
  
+diff --git a/src/SaveGame.cc b/src/SaveGame.cc
+index 7327e5a..f6de9b1 100644
+--- a/src/SaveGame.cc
++++ b/src/SaveGame.cc
+@@ -161,6 +161,9 @@ namespace zenkit {
+ 
+ 		// A two-dimensional array of the form int[42][42] containing guild attitudes
+ 		auto raw = r.read_raw(42 * 42); // guildTable
++		this->guild_table_raw.clear();
++		while (!raw->eof()) this->guild_table_raw.push_back(raw->read_ubyte());
++		raw->seek(0, Whence::BEG);
+ 
+ 		for (auto& guild_attitude : this->guild_attitudes) {
+ 			for (unsigned char& j : guild_attitude) {
+diff --git a/src/vobs/Misc.cc b/src/vobs/Misc.cc
+index c711191..bc3bf0b 100644
+--- a/src/vobs/Misc.cc
++++ b/src/vobs/Misc.cc
+@@ -366,18 +366,19 @@ namespace zenkit {
+ 			do {
+ 				auto next = std::find(it, pack.end(), ';');
+ 				this->packed[idx++].assign(it, next);
+-				it = next;
++				it = next == pack.end() ? next : next + 1;
+ 			} while (it != pack.end() && idx < 9);
+ 		}
+ 
+ 		auto item_count = static_cast<size_t>(r.read_int()); // itemCount
+ 		this->items.resize(item_count);
++		this->item_short_keys.assign(item_count, -1);
+ 
+ 		for (auto i = 0u; i < item_count; ++i) {
+ 			this->items[i] = r.read_object<VItem>(version); // item0
+ 
+ 			if ((this->items[i]->s_flags & 0x200) != 0) {
+-				(void) r.read_int(); // shortKey<n> // TODO
++				this->item_short_keys[i] = r.read_int(); // shortKey<n>
+ 			}
+ 		}
+ 
+@@ -539,7 +540,7 @@ namespace zenkit {
+ 			w.write_object("item" + std::to_string(i), item, version);
+ 
+ 			if ((item->s_flags & 0x200) != 0) {
+-				w.write_int("shortKey" + std::to_string(i), 0); // TODO
++				w.write_int("shortKey" + std::to_string(i), i < this->item_short_keys.size() ? this->item_short_keys[i] : 0);
+ 			}
+ 		}
+ 
+diff --git a/src/vobs/VirtualObject.cc b/src/vobs/VirtualObject.cc
+index 6c23fd2..2b3110b 100644
+--- a/src/vobs/VirtualObject.cc
++++ b/src/vobs/VirtualObject.cc
+@@ -391,6 +391,13 @@ namespace zenkit {
+ 		w.write_int("actionMode", this->action_mode);
+ 	}
+ 
++	void AiArrow::load(ReadArchive& r, GameVersion version) {
++		vob = r.read_object(version);
++		(void) r.read_raw(6); // flight time and state of the arrow
++		arrow = r.read_object(version);
++		owner = r.read_object(version);
++	}
++
+ 	void AiMove::load(ReadArchive& r, GameVersion version) {
+ 		// NOTE(lmichaelis): The NDK does not seem to support `reinterpret_pointer_cast`.
+ 		auto obj = r.read_object(version);

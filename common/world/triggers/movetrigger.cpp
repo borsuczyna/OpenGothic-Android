@@ -311,6 +311,48 @@ int32_t MoveTrigger::moverState() const {
   return 0;
   }
 
+void MoveTrigger::importMover(int32_t st, int32_t key) {
+  if(moverKeyFrames.size()<2 || keyframes.size()!=moverKeyFrames.size())
+    return;
+  const uint32_t last = uint32_t(keyframes.size())-1;
+  const uint32_t f    = uint32_t(std::clamp<int32_t>(key,0,int32_t(last)));
+
+  frame     = f;
+  frameTime = 0;
+  if(behavior==zenkit::MoverBehavior::LOOP && (st==1 || st==3)) {
+    state       = Loop;
+    targetFrame = uint32_t(-1);
+    }
+  else if(st==1) {
+    state       = Open;
+    targetFrame = last;
+    }
+  else if(st==3) {
+    state       = Close;
+    targetFrame = 0;
+    }
+  else if(st==0 && behavior==zenkit::MoverBehavior::OPEN_TIME && f!=0) {
+    state       = OpenTimed;
+    targetFrame = last;
+    }
+  else {
+    state       = Idle;
+    targetFrame = f;
+    }
+
+  // the pose of the keyframe: approached from the frame before, so that an auto-rotated mover has a direction
+  auto m = (f>0) ? calcTransform(prevFrame(f),f,1.f) : calcTransform(0,nextFrame(0),0.f);
+  auto mat = pos0;
+  mat.mul(m);
+  setLocalTransform(mat);
+
+  view = MeshObjects::Mesh();
+  invalidateView();
+  if(state==Idle)
+    disableTicks(); else
+    enableTicks();
+  }
+
 void MoveTrigger::tick(uint64_t dt) {
   assert(state!=Idle);
   frameTime += dt;

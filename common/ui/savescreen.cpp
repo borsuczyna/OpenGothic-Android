@@ -116,7 +116,7 @@ SaveGameHeader SaveScreen::liveHeader(int32_t& chapter, int32_t& level) const {
     hdr.pcTime = *t;
   if(auto* w = Gothic::inst().world()) {
     hdr.world    = w->name();
-    hdr.playTime = w->tickCount();
+    hdr.playTime = w->gameSession().playTime();
     chapter      = w->script().chapter();
     if(auto* pl = w->player())
       level = pl->level();
