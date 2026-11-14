@@ -896,19 +896,35 @@ float Npc::qDistTo(const Item& p) const {
 Tempest::Vec3 Npc::fightDistanceTo(const Npc& tg) const {
   //NOTE: game script decribe comabt distance as distance between BIP01
   // however, in practice, it's easier and more relieble to use rootTr
-  Vec3 cen, tgCen;
-  if(auto sk = visual.visualSkeleton()) {
-    cen = sk->rootTr;
-    transform().project(cen);
-    }
-  cen += position();
+  //NOTE2: the root of the swamp shark is at the tip of its tail, 3.6 meters behind the origin of the model, and 2 meters
+  // outside of its collision box. The distance from there made the shark come to the character with its tail and cover
+  // it with the body, and it did not bite (the character was beside the head): the middle of the body is used for a root
+  // that is far outside of the body. The rotation and the scale of every character are its own.
+  static const float rootFarOutside = 150;
 
-  if(auto sk = tg.visual.visualSkeleton()) {
-    tgCen = sk->rootTr;
-    transform().project(tgCen);
-    }
-  tgCen += tg.position();
-  return (cen-tgCen);
+  auto fightPoint = [](const Npc& n) {
+    Vec3 pos = n.position();
+    auto sk  = n.visual.visualSkeleton();
+    if(sk==nullptr)
+      return pos;
+
+    Vec3 root = sk->rootTr;
+    const auto& bMin = sk->bboxCol[0];
+    const auto& bMax = sk->bboxCol[1];
+    const float dx   = std::max(std::max(bMin.x-root.x, root.x-bMax.x), 0.f);
+    const float dz   = std::max(std::max(bMin.z-root.z, root.z-bMax.z), 0.f);
+    if(dx*dx+dz*dz>rootFarOutside*rootFarOutside) {
+      root.x = (bMin.x+bMax.x)*0.5f;
+      root.z = (bMin.z+bMax.z)*0.5f;
+      }
+
+    // the matrix of the model has the position too, and it can be one frame late: only the rotation and the scale are taken
+    Vec3 zero = {};
+    n.transform().project(zero);
+    n.transform().project(root);
+    return pos + (root-zero);
+    };
+  return fightPoint(*this) - fightPoint(tg);
   }
 
 uint8_t Npc::calcAniComb() const {
