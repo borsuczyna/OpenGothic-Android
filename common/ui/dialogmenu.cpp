@@ -331,6 +331,9 @@ bool DialogMenu::onStart(Npc &p, Npc &ot) {
     }
 
   dlgSel=0;
+#ifdef OPENGOTHIC_TOUCH_UI
+  scrollToSelection();
+#endif
   update();
   return true;
   }
@@ -390,6 +393,9 @@ void DialogMenu::print(std::string_view msg) {
 void DialogMenu::onDoneText() {
   choice = Gothic::inst().updateDialog(selected,*pl,*other);
   dlgSel = 0;
+#ifdef OPENGOTHIC_TOUCH_UI
+  scrollToSelection();
+#endif
   if(choice.size()==0){
     if(depth>0) {
       onStart(*pl,*other);
@@ -615,6 +621,23 @@ DialogMenu::TouchGeometry DialogMenu::touchGeometry() const {
   return g;
   }
 
+void DialogMenu::scrollToSelection() {
+  const auto geo = touchGeometry();
+  if(geo.maxScroll<=0 || dlgSel>=geo.cards.size()) {
+    touchScroll = 0;
+    return;
+    }
+
+  const int top    = geo.cards[dlgSel].y;
+  const int bottom = top+geo.cards[dlgSel].h;
+  float     s      = touchScroll;
+  if(float(top)<s)
+    s = float(top);
+  else if(float(bottom)>s+float(geo.view.h))
+    s = float(bottom-geo.view.h);
+  touchScroll = std::clamp(s,0.f,float(geo.maxScroll));
+  }
+
 void DialogMenu::paintTouchChoice(PaintEvent& e) {
   if(!isChoiceMenuActive())
     return;
@@ -820,6 +843,9 @@ void DialogMenu::mouseWheelEvent(MouseEvent &e) {
   if(e.delta<0)
     dlgSel++;
   dlgSel = (dlgSel+choice.size())%std::max<size_t>(choice.size(),1);
+#ifdef OPENGOTHIC_TOUCH_UI
+  scrollToSelection();
+#endif
   update();
   }
 
@@ -849,6 +875,9 @@ void DialogMenu::keyDownEvent(KeyEvent &e) {
       skipPhrase();
       }
     dlgSel = (dlgSel+choice.size())%std::max<size_t>(choice.size(),1);
+#ifdef OPENGOTHIC_TOUCH_UI
+    scrollToSelection();
+#endif
     update();
     return;
     }
