@@ -31,7 +31,11 @@ class PlayerControl final {
     void  changeZoom(int delta);
     void  tickFocus();
     void  clearFocus();
-    void  cycleTarget();
+    /// The lock button: the next target to the right, after the last one the lock is released. fightOnly: only a character that fights the hero is taken (the lock that is taken by itself).
+    void  cycleTarget(bool fightOnly=false);
+    /// A weapon has just been drawn: locks the opponent nearest to the center of the view (an enemy, or a character that attacks the hero: the opponent of a duel),
+    /// nobody is locked when there is none (no peaceful character)
+    void  autoLock();
     void  unlockTarget(Npc& pl);
     bool  hasLock() const { return lockedNpc!=nullptr; }
     void  releaseLock() { lockedNpc = nullptr; }

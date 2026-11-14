@@ -1975,6 +1975,19 @@ void MainWindow::onMobileAction(int id) {
     }
   }
 
+/// The option of the settings: a weapon in the hand locks the opponent by itself, as the lock button does
+void MainWindow::updateAutoLock() {
+  auto* pl = Gothic::inst().player();
+  const bool drawn = pl!=nullptr && pl->weaponState()!=WeaponState::NoWeapon;
+  const bool fresh = drawn && !weaponWasDrawn;
+  weaponWasDrawn   = drawn;
+  if(!fresh || AndroidInput::preferences().autoLock==0)
+    return;
+  if(mobileContext()!=Mobile::Mode::Game || pl->isDown() || pl->interactive()!=nullptr)
+    return;
+  player.autoLock();
+  }
+
 /// Damage is felt: the stronger the hit, the longer and stronger the vibration
 void MainWindow::updateHaptics() {
   auto pl = Gothic::inst().player();
@@ -1995,6 +2008,7 @@ void MainWindow::updateHaptics() {
 
 void MainWindow::updateMobileControls() {
   updateHaptics();
+  updateAutoLock();
   updateMobileAvailability();
   androidControls.inventoryLists(inventory.mobileTwoLists());
   androidControls.gui(Gothic::interfaceScale(this));

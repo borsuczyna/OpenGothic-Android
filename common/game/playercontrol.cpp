@@ -1229,7 +1229,13 @@ void PlayerControl::unlockTarget(Npc& pl) {
   pl.setTarget(nullptr);
   }
 
-void PlayerControl::cycleTarget() {
+void PlayerControl::autoLock() {
+  if(lockedNpc!=nullptr)
+    return;
+  cycleTarget(true);
+  }
+
+void PlayerControl::cycleTarget(bool fightOnly) {
   auto w  = Gothic::inst().world();
   auto c  = Gothic::inst().camera();
   auto pl = w!=nullptr ? w->player() : nullptr;
@@ -1272,8 +1278,14 @@ void PlayerControl::cycleTarget() {
     cand.npc     = npc;
     cand.x       = p.x;
     cand.score   = std::abs(p.x) + 0.5f*std::abs(p.y) + 0.3f*dist/LockRange;
-    cand.hostile = pl->isEnemy(*npc);
+    // An enemy by the attitude, or a character that attacks the hero now: the opponent of a duel (the arena) is not an enemy by the attitude,
+    // the script of the dialog only sends him to attack (Npc_SetTarget, AI_StartState ZS_Attack).
+    cand.hostile = pl->isEnemy(*npc) || (npc->isAttack() && npc->target()==pl);
     list.push_back(cand);
+    }
+  if(fightOnly) {
+    // the lock that is taken by itself is for a fight: a peaceful character is never locked
+    list.erase(std::remove_if(list.begin(),list.end(),[](const Candidate& c) { return !c.hostile; }),list.end());
     }
   if(list.empty()) {
     // nobody to take: the button lets the held target go

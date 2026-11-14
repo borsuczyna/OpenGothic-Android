@@ -325,7 +325,7 @@ void Controls::buildSettings(const Anchor& a) {
   static const char* labels[SettingCount] = {
     "Button size", "3D resolution", "Shadow quality", "SSAO effects",
     "FPS limit", "Joystick deadzone", "Camera sensitivity", "Vibration", "GUI scale",
-    "Fast forward", "HP/Mana numbers", "XP counter", "Step buttons"
+    "Fast forward", "HP/Mana numbers", "XP counter", "Step buttons", "Auto lock"
     };
   // The speed is not a part of the vanilla game: its row is there only when a mod has asked for it
   std::vector<int> rows;

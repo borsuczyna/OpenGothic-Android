@@ -51,7 +51,7 @@ const char* const IconFiles[AndroidInput::IconCount] = {
 
 const char* const SettingNames[Mobile::SettingCount] = {
   "buttons", "resolution", "shadows", "effects", "fps", "deadzone", "sensitivity", "vibration", "gui",
-  "speed", "hudnumbers", "hudxp", "strafe"
+  "speed", "hudnumbers", "hudxp", "strafe", "autolock"
   };
 
 // Gives access to the dispatch functions of SystemApi
@@ -184,6 +184,7 @@ int nextValue(int setting, int value) {
     case Mobile::SettingHudNumbers:
     case Mobile::SettingHudXp:
     case Mobile::SettingStrafe:
+    case Mobile::SettingAutoLock:
       return value ? 0 : 1;
     }
   return value;
@@ -201,6 +202,8 @@ std::string settingText(int setting, const std::string& label) {
     return value ? "XP counter: ON" : "XP counter: OFF";
   if(setting==Mobile::SettingStrafe)
     return value ? "Step buttons: ON" : "Step buttons: OFF";
+  if(setting==Mobile::SettingAutoLock)
+    return value ? "Auto lock on weapon draw: ON" : "Auto lock on weapon draw: OFF";
   if(setting==Mobile::SettingSpeed)
     return label+"   "+std::to_string(value/100)+"."+std::to_string(value%100/10)+"x";
 
@@ -296,6 +299,8 @@ AndroidInput::Preferences AndroidInput::preferences() {
     }
   if(Gothic::settingsGetI(Section,"version")>=6)
     ret.strafe = Gothic::settingsGetI(Section,SettingNames[Mobile::SettingStrafe])!=0 ? 1 : 0;
+  if(Gothic::settingsGetI(Section,"version")>=7)
+    ret.autoLock = Gothic::settingsGetI(Section,SettingNames[Mobile::SettingAutoLock])!=0 ? 1 : 0;
   return ret;
   }
 
@@ -315,11 +320,12 @@ void AndroidInput::Controller::bind() {
     Gothic::settingsSetI(Section,SettingNames[Mobile::SettingHudNumbers], def.hudNumbers);
     Gothic::settingsSetI(Section,SettingNames[Mobile::SettingHudXp],      def.hudXp);
     Gothic::settingsSetI(Section,SettingNames[Mobile::SettingStrafe],     def.strafe);
-    Gothic::settingsSetI(Section,"version",6);
+    Gothic::settingsSetI(Section,SettingNames[Mobile::SettingAutoLock],   def.autoLock);
+    Gothic::settingsSetI(Section,"version",7);
     Gothic::flushSettings();
     } else
-  if(Gothic::settingsGetI(Section,"version")<6) {
-    // settings saved before the vibration, the scale of the interface, the fast forward and the side steps were added
+  if(Gothic::settingsGetI(Section,"version")<7) {
+    // settings saved before the vibration, the scale of the interface, the fast forward, the side steps and the auto lock were added
     const Preferences def;
     const int version = Gothic::settingsGetI(Section,"version");
     if(version<2)
@@ -333,8 +339,12 @@ void AndroidInput::Controller::bind() {
       Gothic::settingsSetI(Section,SettingNames[Mobile::SettingHudXp],def.hudXp);
       }
     // the side step buttons were always there: they stay until the player switches them off
-    Gothic::settingsSetI(Section,SettingNames[Mobile::SettingStrafe],def.strafe);
-    Gothic::settingsSetI(Section,"version",6);
+    if(version<6)
+      Gothic::settingsSetI(Section,SettingNames[Mobile::SettingStrafe],def.strafe);
+    // the lock of the target by itself is off until the player switches it on
+    if(version<7)
+      Gothic::settingsSetI(Section,SettingNames[Mobile::SettingAutoLock],def.autoLock);
+    Gothic::settingsSetI(Section,"version",7);
     Gothic::flushSettings();
     }
   loadHudPlaces();
