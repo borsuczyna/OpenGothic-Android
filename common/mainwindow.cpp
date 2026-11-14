@@ -1310,6 +1310,9 @@ uint64_t MainWindow::tick() {
       clearInput();
     if(i==0)
       tickMouse(dt);
+#ifdef OPENGOTHIC_TOUCH_UI
+    player.setPadMove(androidControls.moveYaw(),androidControls.moveSide());
+#endif
     player.tickMove(step);
     }
   update();
@@ -1995,6 +1998,19 @@ void MainWindow::onMobileAction(int id) {
     }
   }
 
+/// The option of the settings: a weapon in the hand locks the opponent by itself, as the lock button does
+void MainWindow::updateAutoLock() {
+  auto* pl = Gothic::inst().player();
+  const bool drawn = pl!=nullptr && pl->weaponState()!=WeaponState::NoWeapon;
+  const bool fresh = drawn && !weaponWasDrawn;
+  weaponWasDrawn   = drawn;
+  if(!fresh || AndroidInput::preferences().autoLock==0)
+    return;
+  if(mobileContext()!=Mobile::Mode::Game || pl->isDown() || pl->interactive()!=nullptr)
+    return;
+  player.autoLock();
+  }
+
 /// Damage is felt: the stronger the hit, the longer and stronger the vibration
 void MainWindow::updateHaptics() {
   auto pl = Gothic::inst().player();
@@ -2015,6 +2031,7 @@ void MainWindow::updateHaptics() {
 
 void MainWindow::updateMobileControls() {
   updateHaptics();
+  updateAutoLock();
   updateMobileAvailability();
   androidControls.inventoryLists(inventory.mobileTwoLists());
   androidControls.gui(Gothic::interfaceScale(this));
@@ -2066,8 +2083,11 @@ void MainWindow::updateMobileAvailability() {
           allowed |= keyMask(Key::Action);
         if(melee)
           allowed |= keyMask(Key::AttackLeft) | keyMask(Key::AttackRight) | keyMask(Key::Block);
-        if(armed)
+        if(armed) {
           allowed |= keyMask(Key::StrafeLeft) | keyMask(Key::StrafeRight);
+          // the arrows forward and back with the side steps (the back one is the jump back of the fight)
+          allowed |= keyMask(Key::Up) | keyMask(Key::Down);
+          }
 
         target = armed;
 

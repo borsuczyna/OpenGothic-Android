@@ -115,6 +115,8 @@ class MainWindow : public Tempest::Window {
 #ifdef OPENGOTHIC_TOUCH_UI
     Mobile::Mode mobileContext() const;
     int      lastHitpoints = -1;
+    bool     weaponWasDrawn = false;
+    void     updateAutoLock();
     bool     fastForward = false;
     uint64_t fastForwardDt(uint64_t dt);
     void     setupMobileControls();

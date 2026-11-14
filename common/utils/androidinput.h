@@ -62,7 +62,8 @@ struct Preferences {
   int speed       = 200; // fast forward, percent of the normal speed
   int hudNumbers  = 0;   // 1: the numbers of life and mana (5/10) over the bars
   int hudXp       = 0;   // 1: the experience (500/1000) between the bars
-  int strafe      = 1;   // 1: the buttons of the side steps on the HUD
+  int strafe      = 1;   // 1: the buttons of the side steps (and the arrows forward and back) on the HUD
+  int autoLock    = 0;   // 1: the lock of the target is taken by itself when a weapon is drawn
   };
 
 Preferences preferences();
@@ -113,6 +114,9 @@ class Controller {
     const Tempest::Sprite&     icon(Icon id) const { return icons.at(size_t(id)); }
     const std::vector<Mobile::Button>& buttons() const { return controls.buttons(); }
     bool  settingsVisible() const { return controls.settingsVisible(); }
+    /// The left stick of a gamepad: the angle of a diagonal walk and the push to the side, see Mobile::Controls::padMove
+    float moveYaw() const { return controls.moveYaw(); }
+    float moveSide() const { return controls.moveSide(); }
 
     Hud   hud;
 

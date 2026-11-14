@@ -253,6 +253,7 @@ class GameScript final {
     bool isUnconscious(const Npc &pl);
     bool isTalk       (const Npc &pl);
     bool isAttack     (const Npc &pl) const;
+    bool isMonsterAttack(const Npc &pl) const;
 
     std::string_view spellCastAnim(Npc& npc, Item&  fn);
     std::string_view messageFromSvm(std::string_view id,int voice) const;

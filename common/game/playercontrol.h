@@ -25,13 +25,19 @@ class PlayerControl final {
     void  onKeyReleased(KeyCodec::Action a, KeyCodec::Mapping mapping);
     bool  isPressed(KeyCodec::Action a) const;
     void  onRotateMouse(float dAngleX, float dAngleY);
+    /// The left stick of a gamepad: the angle of a diagonal walk (degrees) and the push to the side (-1..1, a side step while the target is locked)
+    void  setPadMove(float yaw, float side) { padYaw = yaw; padSide = side; }
 
     void  drawVobRay(DbgPainter& p) const;
 
     void  changeZoom(int delta);
     void  tickFocus();
     void  clearFocus();
-    void  cycleTarget();
+    /// The lock button: the next target to the right, after the last one the lock is released. fightOnly: only a character that fights the hero is taken (the lock that is taken by itself).
+    void  cycleTarget(bool fightOnly=false);
+    /// A weapon has just been drawn: locks the opponent nearest to the center of the view (an enemy, or a character that attacks the hero: the opponent of a duel),
+    /// nobody is locked when there is none (no peaceful character)
+    void  autoLock();
     void  unlockTarget(Npc& pl);
     bool  hasLock() const { return lockedNpc!=nullptr; }
     void  releaseLock() { lockedNpc = nullptr; }
@@ -154,6 +160,9 @@ class PlayerControl final {
     size_t         pickLockProgress = 0;
 
     float          runAngleDest   = 0.f;
+    float          padYaw         = 0.f;
+    float          padSide        = 0.f;
+    bool           diagonalOk     = false;   //!< the walk of this tick may go off the direction of the hero
     uint64_t       turnAniSmooth  = 0;
     int            rotationAni    = 0;
     bool           g2Ctrl         = false;

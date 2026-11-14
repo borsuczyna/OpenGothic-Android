@@ -87,30 +87,51 @@ final class SaveExport {
         }
     }
 
-    static boolean belongsToGame(String name, String gameId) {
+    /** The names of the files of the saves: "<game>save_slot_N.sav" (a slot) and "<game>quicksave_N.sav" (the quick save). */
+    private static final String[] MARKERS = {"save_slot_", "quicksave_"};
+
+    /**
+     * The part of the file name before the marker ("g1_", "thechroniclesofmyrtana_", "archolos_" or "" for Gothic 2),
+     * null when the file is not a save of the game at all.
+     */
+    static String prefixOf(String name) {
         String lower = name.toLowerCase(Locale.ROOT);
-        if ("gothic1".equals(gameId)) return lower.startsWith("g1_");
-        if ("myrtana".equals(gameId)) return lower.startsWith("thechroniclesofmyrtana_");
+        if (!lower.endsWith(".sav"))
+            return null;
+        for (String marker : MARKERS) {
+            int slot = lower.lastIndexOf(marker);
+            if (slot < 0)
+                continue;
+            int start = slot + marker.length();
+            int end = lower.length() - 4;
+            if (start >= end)
+                continue;
+            boolean digits = true;
+            for (int i = start; i < end; i++) {
+                if (lower.charAt(i) < '0' || lower.charAt(i) > '9') {
+                    digits = false;
+                    break;
+                }
+            }
+            if (digits)
+                return lower.substring(0, slot);
+        }
+        return null;
+    }
+
+    static boolean belongsToGame(String name, String gameId) {
+        String prefix = prefixOf(name);
+        if (prefix == null)
+            return false;
+        if ("gothic1".equals(gameId)) return prefix.equals("g1_");
+        if ("myrtana".equals(gameId)) return prefix.equals("thechroniclesofmyrtana_");
         if ("gothic2".equals(gameId) || "gothic2_notr".equals(gameId))
-            return lower.startsWith("save_slot_");
+            // Gothic 2 itself has no prefix, the mods of the Spine have the name of their ini ("archolos_save_slot_1.sav")
+            return !prefix.equals("g1_") && !prefix.equals("thechroniclesofmyrtana_");
         return false;
     }
 
     static boolean isSave(String name) {
-        String lower = name.toLowerCase(Locale.ROOT);
-        if (!lower.endsWith(".sav"))
-            return false;
-        int slot = lower.lastIndexOf("save_slot_");
-        if (slot < 0)
-            return false;
-        int start = slot + "save_slot_".length();
-        int end = lower.length() - 4;
-        if (start >= end)
-            return false;
-        for (int i = start; i < end; i++) {
-            if (lower.charAt(i) < '0' || lower.charAt(i) > '9')
-                return false;
-        }
-        return true;
+        return prefixOf(name) != null;
     }
 }

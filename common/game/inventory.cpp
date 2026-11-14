@@ -570,6 +570,11 @@ void Inventory::unequipArmor(GameScript &, Npc &owner) {
   setSlot(armor,nullptr,owner,false);
   }
 
+void Inventory::unequipRunes(Npc &owner) {
+  for(auto& i:numslot)
+    if(i!=nullptr)
+      setSlot(i,nullptr,owner,false);
+  }
 void Inventory::clear(GameScript&, Npc&, bool includeMissionItm) {
   std::vector<std::unique_ptr<Item>> used;
   for(auto& i:items)

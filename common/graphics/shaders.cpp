@@ -24,6 +24,12 @@ static bool isMali(const char* name) {
   return std::strstr(name,"Mali")!=nullptr;
   }
 
+/// PowerVR D-Series (Pixel 10 Pro Fold, DXT-48-1536): the driver dies (SIGSEGV in vulkan.powervr.so) in the allocation of the descriptor set of the
+/// bindless pipelines, in the first draw of the game. The pipelines with the slots work: this family does without bindless from the first start.
+/// Only the D-Series: the older PowerVR (Rogue) keep what they have, and a death of another GPU in the same place is learned from crash.log.
+static bool isPowerVRDSeries(const char* name) {
+  return std::strstr(name,"PowerVR D-Series")!=nullptr;
+  }
 /// every shader of the program is taken by name here: the name is kept in the lock of the safe GPU mode while the driver compiles it
 static GothicShader shaderByName(std::string_view name) {
   SafeGpu::trace(name);
@@ -80,8 +86,10 @@ const Shaders::Options& Shaders::options() {
 void Shaders::setupOptions() {
   auto& gpu = Resources::device().properties();
   const bool minimal    = SafeGpu::isMinimal();   // the driver died again in the safe mode: only what every GPU can do
-  opts.doBindless       = hasBindless() && CommandLine::inst().isBindless() && !minimal;
-  opts.doRtScene        = gpu.raytracing.rayQuery && CommandLine::inst().isRayQuery() && !minimal;
+  const bool noBindless = SafeGpu::noBindless() || isPowerVRDSeries(gpu.name);
+  if(noBindless && hasBindless())
+    Log::i("bindless is off for ",gpu.name," (the pipelines with the slots)");
+  opts.doBindless       = hasBindless() && CommandLine::inst().isBindless() && !minimal && !noBindless;  opts.doRtScene        = gpu.raytracing.rayQuery && CommandLine::inst().isRayQuery() && !minimal;
   opts.doRayQuery       = opts.doRtScene && opts.doBindless;
   opts.doMeshShading    = gpu.meshlets.meshShader && CommandLine::inst().isMeshShading() && !minimal;
   opts.doSoftwareShadow = Shaders::isRtsmSupported() && CommandLine::inst().isSoftwareShadow() && !minimal;

@@ -272,6 +272,7 @@ if(ANDROID)
     CODE Gothic2Notr
     MANIFEST android/AndroidManifest.xml
     JAVA_DIRS android/java
+    RESOURCE_DIRS android/res
     ASSET_DIRS android/launcher-assets
     # The login to Steam and the download of the games (android/java/org/opengothic/app/SteamSession.java).
     # The cryptography, the unpacking of the content (xz, zstd) and the libraries that the POM of JavaSteam only lists as runtime ones.

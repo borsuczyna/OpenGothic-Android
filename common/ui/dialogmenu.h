@@ -76,6 +76,8 @@ class DialogMenu : public Tempest::Widget {
       };
     TouchGeometry touchGeometry() const;
     void paintTouchChoice(Tempest::PaintEvent& e);
+    /// scrolls the list of the answers, so the selected answer (a key, a gamepad) is in the view
+    void scrollToSelection();
 
     float touchScroll      = 0;
     float touchStartY      = 0;

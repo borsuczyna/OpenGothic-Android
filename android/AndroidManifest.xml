@@ -17,14 +17,15 @@
     <uses-feature android:name="android.hardware.vulkan.level" android:version="0" android:required="true" />
     <uses-feature android:name="android.hardware.vulkan.version" android:version="0x00401000" android:required="true" />
     <!-- The servers of the content of Steam answer on plain HTTP too: the data is encrypted and checked by Steam's own hashes -->
-    <application android:label="OpenGothic" android:appCategory="game" android:hasCode="true" android:allowBackup="false" android:largeHeap="true"
+    <!-- userLandscape: landscape both ways, the screen turns by 180 degrees with the auto-rotate of the phone (a pad that is clamped to the phone the other way up); when the user has locked the rotation, it stays -->
+    <application android:label="OpenGothic" android:icon="@mipmap/ic_launcher" android:appCategory="game" android:hasCode="true" android:allowBackup="false" android:largeHeap="true"
         android:requestLegacyExternalStorage="true"
         android:usesCleartextTraffic="true"
         android:resizeableActivity="true"
         android:theme="@android:style/Theme.Material.NoActionBar.Fullscreen">
         <!-- Imports the game files and starts the game -->
         <activity android:name="org.opengothic.app.LauncherActivity" android:exported="true"
-            android:screenOrientation="landscape"
+            android:screenOrientation="userLandscape"
             android:configChanges="orientation|screenSize|keyboardHidden">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -33,21 +34,21 @@
         </activity>
         <!-- Mods: adding of zip files and the choice of the mods that start with the game -->
         <activity android:name="org.opengothic.app.ModsActivity" android:exported="false"
-            android:screenOrientation="landscape"
+            android:screenOrientation="userLandscape"
             android:configChanges="orientation|screenSize|keyboardHidden" />
         <!-- Mods of Gothic from the database of Spine: browsing, download, play -->
         <activity android:name="org.opengothic.app.SpineActivity" android:exported="false"
-            android:screenOrientation="landscape" android:windowSoftInputMode="adjustResize"
+            android:screenOrientation="userLandscape" android:windowSoftInputMode="adjustResize"
             android:configChanges="orientation|screenSize|keyboardHidden" />
         <!-- The page of a mod of Spine: pictures, description, opinions, the check for Ikarus and LeGo -->
         <activity android:name="org.opengothic.app.SpineDetailsActivity" android:exported="false"
-            android:screenOrientation="landscape"
+            android:screenOrientation="userLandscape"
             android:configChanges="orientation|screenSize|keyboardHidden" />
         <service android:name="org.opengothic.app.SpineDownloadService" android:exported="false"
             android:foregroundServiceType="dataSync" />
         <!-- The login to Steam, the first screen when nobody is signed in -->
         <activity android:name="org.opengothic.app.SteamLoginActivity" android:exported="false"
-            android:screenOrientation="landscape" android:windowSoftInputMode="adjustResize"
+            android:screenOrientation="userLandscape" android:windowSoftInputMode="adjustResize"
             android:configChanges="orientation|screenSize|keyboardHidden" />
         <!-- The answer of the system installer to the update -->
         <receiver android:name="org.opengothic.app.UpdateReceiver" android:exported="false" />
@@ -55,7 +56,7 @@
             android:foregroundServiceType="dataSync" />
         <!-- Runs in its own process, the launcher stays alive when the game exits -->
         <activity android:name="org.opengothic.app.GameActivity" android:exported="false" android:process=":game"
-            android:screenOrientation="landscape"
+            android:screenOrientation="userLandscape"
             android:configChanges="keyboard|keyboardHidden|navigation|orientation|screenSize|screenLayout|smallestScreenSize|density|uiMode">
             <meta-data android:name="android.app.lib_name" android:value="Gothic2Notr" />
         </activity>

@@ -17,6 +17,7 @@ namespace {
 // 25 m: the units of the world are centimeters
 constexpr float LockRange = 2500.f;
 constexpr float LockTurnSpeed = 360.f;   // degrees per second
+constexpr float PadStepAt     = 0.5f;    // the push of the gamepad stick to the side that is a side step around the locked target
 
 }
 
@@ -614,7 +615,16 @@ bool PlayerControl::tickMove(uint64_t dt) {
   if(pl==nullptr)
     return true;
 
+  diagonalOk = false;
   implMove(dt);
+
+  {
+    // a diagonal walk of the gamepad: the body and the step turn to the side smoothly, and back to straight when the walk is over
+    const float dest = diagonalOk ? padYaw : 0.f;
+    const float cur  = pl->moveYaw();
+    const float stp  = 540.f*dtF;
+    pl->setMoveYaw(cur+std::clamp(dest-cur,-stp,stp));
+    }
 
   float runAngle = pl->runAngle();
   if(runAngle!=0.f || std::fabs(runAngleDest)>0.01f) {
@@ -900,10 +910,13 @@ void PlayerControl::implMove(uint64_t dt) {
       }
     }
 
-  if(this->wantsToStrafeLeft() || (lockFace && this->wantsToTurnLeft())) {
+  // the left stick of a gamepad pushed to the side while the target is locked: a side step around it
+  const bool padLeft  = lockFace && padSide<-PadStepAt;
+  const bool padRight = lockFace && padSide> PadStepAt;
+  if(this->wantsToStrafeLeft() || padLeft || (lockFace && this->wantsToTurnLeft())) {
     ani = Npc::Anim::MoveL;
     }
-  else if(this->wantsToStrafeRight() || (lockFace && this->wantsToTurnRight())) {
+  else if(this->wantsToStrafeRight() || padRight || (lockFace && this->wantsToTurnRight())) {
     ani = Npc::Anim::MoveR;
     }
   else if(this->wantsToMoveForward()) {
@@ -988,6 +1001,7 @@ void PlayerControl::implMove(uint64_t dt) {
 
     if(ani!=Npc::Anim::NoAnim)
       pl.setAnim(ani);
+    diagonalOk = ani==Npc::Anim::Move && !lockFace && !pl.isAttackAnim();
     }
 
   setAnimRotate(pl, rot, ani==Npc::Anim::Idle ? rotation : 0, movement.turnRightLeft.any(), dt);
@@ -1229,7 +1243,13 @@ void PlayerControl::unlockTarget(Npc& pl) {
   pl.setTarget(nullptr);
   }
 
-void PlayerControl::cycleTarget() {
+void PlayerControl::autoLock() {
+  if(lockedNpc!=nullptr)
+    return;
+  cycleTarget(true);
+  }
+
+void PlayerControl::cycleTarget(bool fightOnly) {
   auto w  = Gothic::inst().world();
   auto c  = Gothic::inst().camera();
   auto pl = w!=nullptr ? w->player() : nullptr;
@@ -1272,8 +1292,14 @@ void PlayerControl::cycleTarget() {
     cand.npc     = npc;
     cand.x       = p.x;
     cand.score   = std::abs(p.x) + 0.5f*std::abs(p.y) + 0.3f*dist/LockRange;
-    cand.hostile = pl->isEnemy(*npc);
+    // An enemy by the attitude, or a character that attacks the hero now: the opponent of a duel (the arena) is not an enemy by the attitude,
+    // the script of the dialog only sends him to attack (Npc_SetTarget, AI_StartState ZS_Attack).
+    cand.hostile = pl->isEnemy(*npc) || (npc->isAttack() && npc->target()==pl);
     list.push_back(cand);
+    }
+  if(fightOnly) {
+    // the lock that is taken by itself is for a fight: a peaceful character is never locked
+    list.erase(std::remove_if(list.begin(),list.end(),[](const Candidate& c) { return !c.hostile; }),list.end());
     }
   if(list.empty()) {
     // nobody to take: the button lets the held target go

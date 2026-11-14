@@ -555,6 +555,13 @@ Tempest::Vec3 MoveAlgo::animMoveSpeed(uint64_t dt) const {
 
 Tempest::Vec3 MoveAlgo::npcMoveSpeed(uint64_t dt, MvFlags moveFlg) {
   auto dp = animMoveSpeed(dt);
+  if(npc.moveYaw()!=0.f) {
+    // a diagonal walk: the same step, as if the character had been turned by this angle
+    Tempest::Vec3 turned = dp;
+    applyRotation(turned,dp,npc.moveYawRad());
+    dp.x = turned.x;
+    dp.z = turned.z;
+    }
   if(moveFlg!=WaitMove) {
     if(npc.go2.npc)
       return go2NpcMoveSpeed(dp,*npc.go2.npc);
