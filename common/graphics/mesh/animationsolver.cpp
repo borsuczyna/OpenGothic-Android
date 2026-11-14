@@ -152,12 +152,21 @@ const Animation::Sequence* AnimationSolver::implSolveAnim(AnimationSolver::Anim 
       }
     }
   else if(st==WeaponState::W1H || st==WeaponState::W2H) {
+    // NOTE: solveFrm(format,st) falls back to the fist animation, when the weapon has none (Gothic 1 has no attack of the
+    // two-handed weapon on the run): the character kicked the air. A weapon without the special attack uses its usual one.
+    auto weaponAttack = [&](const char* format) -> const Animation::Sequence* {
+      char name[128] = {};
+      std::snprintf(name,sizeof(name),format,st==WeaponState::W1H ? "1H" : "2H");
+      if(auto ret = solveFrm(name))
+        return ret;
+      return solveFrm("S_%sATTACK",st);
+      };
     if(a==Anim::Attack && pose.hasState(BS_RUN))
-      return solveFrm("T_%sATTACKMOVE",st);
+      return weaponAttack("T_%sATTACKMOVE");
     if(a==Anim::AttackL)
-      return solveFrm("T_%sATTACKL",st);
+      return weaponAttack("T_%sATTACKL");
     if(a==Anim::AttackR)
-      return solveFrm("T_%sATTACKR",st);
+      return weaponAttack("T_%sATTACKR");
     if(a==Anim::Attack || a==Anim::AttackL || a==Anim::AttackR)
       return solveFrm("S_%sATTACK",st);
     if(a==Anim::AttackBlock) {
