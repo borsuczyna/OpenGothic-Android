@@ -1,6 +1,8 @@
 #pragma once
 
 #include <ostream>
+#include <string>
+#include <string_view>
 
 class CrashLog final {
   public:
@@ -8,6 +10,9 @@ class CrashLog final {
     static void setGpu(std::string_view name);
 
     static void dumpStack(const char* sig, const char* extGpuLog);
+
+    /// The memory of the process and of the system (Linux, Android): where a std::bad_alloc comes from, the process, the system or the limit of the mappings
+    static std::string memoryInfo();
 
   private:
     static void tracebackStd(std::ostream& out);

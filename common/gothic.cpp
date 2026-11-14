@@ -23,6 +23,7 @@
 #include "utils/fileutil.h"
 #include "utils/androidinput.h"
 #include "utils/inifile.h"
+#include "utils/crashlog.h"
 #include "graphics/renderdistance.h"
 
 #include "commandline.h"
@@ -574,6 +575,8 @@ void Gothic::implStartLoadSave(std::string_view banner,
         loadingFlag.compare_exchange_strong(curState,LoadState::Finalize);
         }
       catch(std::bad_alloc&){
+        // how much the process and the system have at this moment: the log of the player says where the memory has gone
+        Tempest::Log::e("memory: ", CrashLog::memoryInfo());
         fail("out of memory");
         }
       catch(std::system_error& e){

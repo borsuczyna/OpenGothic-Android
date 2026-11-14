@@ -287,4 +287,46 @@ void CrashLog::tracebackGpu(std::ostream& out, const char* extGpuLog) {
 
 void CrashLog::writeSysInfo(std::ostream &fout) {
   fout << "GPU: " << gpuName << std::endl;
+  const std::string mem = memoryInfo();
+  if(!mem.empty())
+    fout << "memory: " << mem << std::endl;
+  }
+
+std::string CrashLog::memoryInfo() {
+  std::string ret;
+#if defined(__ANDROID__) || defined(__linux__)
+  auto grab = [&ret](const char* path, std::initializer_list<const char*> keys) {
+    std::ifstream f(path);
+    std::string   line;
+    while(std::getline(f,line)) {
+      for(auto k:keys) {
+        if(line.compare(0,std::strlen(k),k)!=0)
+          continue;
+        for(auto& c:line)
+          if(c=='\t')
+            c = ' ';
+        ret += line;
+        ret += "; ";
+        }
+      }
+    };
+  grab("/proc/self/status",{"VmSize","VmRSS","VmHWM","VmSwap","Threads"});
+  grab("/proc/meminfo",    {"MemTotal","MemAvailable","SwapTotal","SwapFree"});
+  {
+    std::ifstream f("/proc/sys/vm/max_map_count");
+    std::string   v;
+    if(f>>v)
+      ret += "max_map_count: "+v+"; ";
+  }
+  {
+    // every file that is mapped (the archives of the game, the libraries, the memory of the GPU) takes some of the limit
+    std::ifstream f("/proc/self/maps");
+    std::string   line;
+    size_t        count = 0;
+    while(std::getline(f,line))
+      ++count;
+    ret += "maps: "+std::to_string(count)+"; ";
+  }
+#endif
+  return ret;
   }
