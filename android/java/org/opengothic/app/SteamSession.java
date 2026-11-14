@@ -116,6 +116,35 @@ final class SteamSession implements Closeable {
     private final Map<Integer, PICSProductInfo> packages = new java.util.concurrent.ConcurrentHashMap<>();
     private volatile DepotDownloader downloader;
 
+    /**
+     * How many times the download ran out of memory in this process: every time the next try takes fewer chunks at the same time.
+     * The library keeps the chunks in the memory (up to 64 packed and 64 unpacked ones wait between its stages, its buffers can not be
+     * changed), so the only thing to turn down is the number of the chunks that are loaded and unpacked at the same time.
+     */
+    static volatile int memoryStrikes = 0;
+
+    private static final java.util.ArrayDeque<String> memorySamples = new java.util.ArrayDeque<>();
+
+    private static void sampleMemory(long seconds, long done, long total) {
+        Runtime rt = Runtime.getRuntime();
+        long used = (rt.totalMemory() - rt.freeMemory()) / (1024 * 1024);
+        long max  = rt.maxMemory() / (1024 * 1024);
+        synchronized (memorySamples) {
+            memorySamples.addLast(seconds + " s: heap " + used + " of " + max + " MB, downloaded " + (done / (1024 * 1024)) + " of " + (total / (1024 * 1024)) + " MB");
+            while (memorySamples.size() > 60)
+                memorySamples.removeFirst();
+        }
+    }
+
+    /** The last samples of the memory of the download, for the file of the error. */
+    static String memoryReport() {
+        StringBuilder b = new StringBuilder("memory strikes " + memoryStrikes + ", the last samples:\n");
+        synchronized (memorySamples) {
+            for (String s : memorySamples)
+                b.append("  ").append(s).append('\n');
+        }
+        return b.toString();
+    }
     SteamSession() {
         client = new SteamClient(SteamConfiguration.create(builder -> { }));
         try {
@@ -380,11 +409,16 @@ final class SteamSession implements Closeable {
         // the arguments: debug, LAN cache, chunks loaded, chunks unpacked and files written at the same time, the Windows build.
         // A chunk is a request to a server of Steam and about two megabytes in the memory (the packed one and the unpacked one):
         // a few of them at the same time are slow, too many fill the memory of the application. The number follows the memory.
+        // The chunks in flight are only a part of the memory of the pipeline (see memoryStrikes): 8 at most (4 for a heap of 256 MB),
+        // half of it after a failure for the lack of memory, and so on. Unpacking 2 chunks at the same time and writing 1 file at a time
+        // is enough for the speed of the network.
         int megabytes = (int) (Runtime.getRuntime().maxMemory() / (1024 * 1024));
-        int chunks = Math.max(6, Math.min(32, megabytes / 20));
+        int strikes = Math.min(memoryStrikes, 3);
+        int chunks = Math.max(2, Math.max(3, Math.min(8, megabytes / 64)) >> strikes);
         int cores = Runtime.getRuntime().availableProcessors();
-        Log.i(TAG, "memory " + megabytes + " MB, " + chunks + " chunks at the same time");
-        DepotDownloader d = new DepotDownloader(client, list, false, false, chunks, Math.max(2, Math.min(4, cores)), 2, true, null);
+        int unpack = strikes >= 2 ? 1 : Math.max(1, Math.min(2, cores));
+        Log.i(TAG, "memory " + megabytes + " MB, " + chunks + " chunks loaded and " + unpack + " unpacked at the same time (memory strikes " + strikes + ")");
+        DepotDownloader d = new DepotDownloader(client, list, false, false, chunks, unpack, 1, true, null);
         downloader = d;
         try {
             d.addListener(listener);
@@ -394,11 +428,21 @@ final class SteamSession implements Closeable {
                     false, "windows", true, null, false, language, false,
                     Collections.<Integer>emptyList(), Collections.<Long>emptyList(), verify, false));
             d.finishAdding();
+            final long started = System.currentTimeMillis();
             while (!done.isDone() && running) {
                 try {
                     done.get(1, TimeUnit.SECONDS);
                 } catch (TimeoutException ignored) {
                     // the download goes on
+                    long total = 0, got = 0;
+                    synchronized (lock) {
+                        for (Map.Entry<Integer, Long> e : sizes.entrySet()) {
+                            total += e.getValue();
+                            Float p = parts.get(e.getKey());
+                            got += p != null ? (long) (p * e.getValue()) : 0;
+                        }
+                    }
+                    sampleMemory((System.currentTimeMillis() - started) / 1000, got, total);
                 } catch (ExecutionException | InterruptedException e) {
                     break;
                 }
