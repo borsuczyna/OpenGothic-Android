@@ -728,7 +728,11 @@ bool Npc::checkHealth(bool onChange, bool allowUnconscious) {
 
 void Npc::onNoHealth(bool death, HitSound sndMask) {
   invent.switchActiveWeapon(*this,Item::NSLOT);
-  // CoM: in some scenes the hero keeps the weapon when he falls unconscious
+  // The runes of a monster are its body parts: the heart of an ice golem is the rune of Ice Cube. The rune that the monster had
+  // cast with stays equipped, and the equipped items are not shown in the list of the dead body: the heart could not be taken
+  // (Xardas asks for the hearts of the golems).
+  if(death && isMonster())
+    invent.unequipRunes(*this);  // CoM: in some scenes the hero keeps the weapon when he falls unconscious
   if(death || !owner.script().dmaDropUnconscious(*this))
     visual.dropWeapon(*this);
   visual.dropShield(*this);

@@ -83,6 +83,7 @@ class Inventory final {
     void   equipBestRangedWeapon(Npc &owner);
     void   unequipWeapons(GameScript &vm, Npc &owner);
     void   unequipArmor(GameScript &vm, Npc &owner);
+    void   unequipRunes(Npc &owner);
     void   clear(GameScript &vm, Npc &owner, bool includeMissionItm = false);
     void   clear(GameScript &vm, Interactive &owner, bool includeMissionItm = false);
     bool   hasSpell(int32_t spl) const;
