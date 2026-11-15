@@ -63,6 +63,11 @@ final class SteamSession implements Closeable {
         // The provider goes to the END of the list: JavaSteam finds it by the name. At the first place it would take the
         // keystores and the certificates of the whole application, and the TLS of everything else (Spine, the update) failed
         // with "NoSuchAlgorithmException: Error constructing implementation (algorithm: Default ..." until the application was closed.
+        // The TLS of the application (the default SSLContext and the default factory of HttpsURLConnection) is made once and kept for
+        // the whole process. It has to be made while the providers are still the ones of the system and while there is memory:
+        // a failure here is kept too ("NoSuchAlgorithmException: Error constructing implementation (algorithm: Default ...") and
+        // every download from Spine fails until the application is closed.
+        Tls.ensure();
         Security.removeProvider("BC");
         Security.addProvider(new BouncyCastleProvider());
     }

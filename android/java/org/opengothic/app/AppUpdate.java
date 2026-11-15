@@ -86,6 +86,7 @@ final class AppUpdate {
         final int id = installer.createSession(params);
         PackageInstaller.Session session = installer.openSession(id);
         boolean committed = false;
+        Tls.ensure();
         HttpURLConnection c = (HttpURLConnection) new URL(release.apkUrl).openConnection();
         try {
             c.setConnectTimeout(15000);

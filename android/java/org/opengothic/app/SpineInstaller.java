@@ -339,6 +339,7 @@ final class SpineInstaller {
     }
 
     private static HttpURLConnection open(String url) throws IOException {
+        Tls.ensure();
         HttpURLConnection c = (HttpURLConnection) new URL(url).openConnection();
         c.setConnectTimeout(20000);
         c.setReadTimeout(60000);
