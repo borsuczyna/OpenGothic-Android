@@ -8,6 +8,7 @@
 #include "game/movealgo.h"
 #include "game/inventory.h"
 #include "game/fightalgo.h"
+#include "game/damagecalculator.h"
 #include "game/gamescript.h"
 #include "physics/dynamicworld.h"
 #include "world/aiqueue.h"
@@ -519,6 +520,7 @@ class Npc final {
     void      emitSoundSVM   (std::string_view sound);
 
     void      startEffect(Npc& to, const VisualFx& vfx);
+    void      takeEffectDamage(Npc& source, int32_t damage, int32_t damageType, uint64_t delayMs);
     void      stopEffect (const VisualFx& vfx);
     void      runEffect  (Effect&& e);
 
@@ -621,7 +623,9 @@ class Npc final {
     bool      hasAutoroll() const;
     bool      prepareTurn();
     void      stopWalkAnimation();
-    void      takeDamage(Npc& other, const Bullet* b, const CollideMask bMask, int32_t splId, bool isSpell);
+    void      takeDamage(Npc& other, const Bullet* b, const CollideMask bMask, int32_t splId, bool isSpell, const DamageCalculator::Damage* custom=nullptr);
+    void      tickEffectHits();
+    void      tickLooseWeapon();
     void      takeFallDamage(const Tempest::Vec3& fallSpeed);
     void      takeDrownDamage();
 
@@ -745,6 +749,14 @@ class Npc final {
     Npc*                           currentTarget  =nullptr;
     Npc*                           nearestEnemy   =nullptr;
     uint64_t                       aggroLostSince =0;  // since when the target of the monster is out of its senses range (0 = it is not)
+    struct EffectHit {
+      uint64_t at     = 0;
+      Npc*     src    = nullptr;
+      int32_t  damage = 0;
+      int32_t  type   = 0;
+      };
+    std::vector<EffectHit>         effectHits;         // the damage of the effects of the scripts (Wld_PlayEffect), it lands when the effect arrives
+    uint64_t                       looseWeaponSince=0; // since when the character walks about with a weapon in hand and nothing to fight (0 = it does not)
     AiOuputPipe*                   outputPipe     =nullptr;
 
     Tempest::Vec3                  moveMobCacheKey={};

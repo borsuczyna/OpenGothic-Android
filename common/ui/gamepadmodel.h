@@ -8,8 +8,11 @@
 /// A gamepad as a source of the same events as the touch controls. Has no Android/renderer dependencies, so it can be tested on the host.
 ///
 /// The scheme follows zGamePad (the plugin of Union by Gratt), with the camera on the right stick:
-///   game      left stick  walk where the stick points (a diagonal is a walk off the direction of the hero, the hero does not turn);
-///                         a stick to the side or back turns the character as the touch stick does; the target locked: a side step
+///   game      left stick  with a weapon in the hand (both styles): walk, back and the side steps, no turn, no diagonal;
+///                         without it two styles (Style): Diagonal walks where the stick points (a diagonal is a walk off the direction
+///                         of the hero, the hero does not turn), a stick to the side or back turns the character as the touch stick does,
+///                         the target locked: a side step. Touch is the touch stick: walk and back, a stick to the side turns the
+///                         character (a diagonal is an arc)
 ///             right stick camera, faster than that turn; R3 target; L3 sneak
 ///             A / RT      action (talk, take, attack, shoot, cast), held
 ///             B / LT      block, held
@@ -29,6 +32,10 @@ enum class Pad : uint8_t {
 
 class Gamepad {
   public:
+    /// The movement of the left stick (the setting "Gamepad movement")
+    enum class Style : uint8_t { Diagonal, Touch };
+    void  style(Style s) { moveStyle = s; }
+
     /// the buttons; the triggers are the axes
     void  button(Pad pad, bool down);
     /// -1..1 (y is positive downwards, as on Android); the triggers 0..1
@@ -69,6 +76,7 @@ class Gamepad {
     float lx = 0, ly = 0, rx = 0, ry = 0, lt = 0, rt = 0;
     bool  anyInput = false;
 
+    Style    moveStyle = Style::Diagonal;
     Mode     mode      = Mode::Loading;
     bool     blocked   = true;
     uint64_t lastTick  = 0;

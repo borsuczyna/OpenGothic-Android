@@ -313,6 +313,8 @@ void mainWater(vec4 t) {
   float minLength = max(length(lx),length(ly));
 
   Wave wx = wave(shInp.pos, minLength, waveIterationsHigh, waveAmplitude(waveMaxAmplitude));
+  if(!(dot(wx.normal,wx.normal) > 0.25))
+    wx.normal = vec3(0,1,0);   // the waves gave NaN (a driver, a huge argument of sin/cos): a flat water, not a black one
 
   if(gl_FrontFacing) {
     // BROKEN: water mesh is two sided
@@ -320,6 +322,8 @@ void mainWater(vec4 t) {
     }
 
   outColor       = waterShading(t,wx.normal);
+  if(!(dot(outColor.rgb,outColor.rgb) < 1.0e12))
+    outColor = vec4(t.rgb*0.1,1.0);
   outDiffuse.rgb = t.rgb;
   outDiffuse.a   = encodeHintBits();
   outNormal      = encodeNormal(wx.normal);

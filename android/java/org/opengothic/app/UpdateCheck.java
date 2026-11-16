@@ -44,6 +44,7 @@ final class UpdateCheck {
 
     /** The published release with the link of its APK. Blocks: not for the main thread. */
     static Release release() throws IOException {
+        Tls.ensure();
         HttpURLConnection c = (HttpURLConnection) new URL(API).openConnection();
         try {
             c.setConnectTimeout(10000);

@@ -1844,6 +1844,23 @@ bool Npc::implGoTo(uint64_t dt, float destDist) {
     goStuckPos  = position();
     }
 
+  // A character that is far from the player (60+ meters) does not walk to its way point: nobody sees it. A quest sends the character
+  // to another place, or the player teleports away, and later the character is found on the way, or not at its place at all (Lester,
+  // Bartholo). The original game puts such a character at the place of its routine. Only the walk along the way points of a script
+  // or of a routine; a fight, a follower, a talk, a swim or a mob are not touched.
+  if(go2.flag==GT_Way && go2.wp!=nullptr && go2.npc==nullptr && aiPolicy==NpcProcessPolicy::AiFar2 && currentTarget==nullptr &&
+     !isDown() && !isTalk() && !isInAir() && !isSwim() && !isDive() && interactive()==nullptr) {
+    const WayPoint* last = wayPath.last()!=nullptr ? wayPath.last() : go2.wp;
+    Log::d("[",displayName().data(),"] is far from the player, it does not walk to the way point ",last->name);
+    wayPath.clear();
+    attachToPoint(nullptr);
+    setPosition(last->groundPos);
+    setDirection(last->direction());
+    attachToPoint(last);
+    go2.wp = last;
+    updateTransform();
+    }
+
   if(isInAir() || interactive()!=nullptr) {
     mvAlgo.tick(dt);
     return true;
@@ -2400,7 +2417,7 @@ void Npc::takeDamage(Npc& other, const Bullet* b, const VisualFx* vfx, int32_t s
   takeDamage(other,b,bMask,splId,true);
   }
 
-void Npc::takeDamage(Npc& other, const Bullet* b, const CollideMask bMask, int32_t splId, bool isSpell) {
+void Npc::takeDamage(Npc& other, const Bullet* b, const CollideMask bMask, int32_t splId, bool isSpell, const DamageCalculator::Damage* custom) {
   float a  = angleDir(other.x-x,other.z-z);
   float da = a-angle;
   if(std::cos(da*M_PI/180.0)<0)
@@ -2413,7 +2430,16 @@ void Npc::takeDamage(Npc& other, const Bullet* b, const CollideMask bMask, int32
   bool                     dontKill   = ((b==nullptr && splId==0) || (bMask & COLL_DONTKILL)) && (!isSwim());
   int32_t                  damageType = DamageCalculator::damageTypeMask(other);
 
-  if(isSpell) {
+  if(custom!=nullptr) {
+    // the damage of an effect of a script (the fireball of the Sleeper): it kills, it does not knock out
+    dontKill   = false;
+    dmg        = *custom;
+    damageType = 0;
+    for(size_t i=0; i<zenkit::DamageType::NUM; ++i)
+      if(dmg[i]!=0)
+        damageType |= (1<<i);
+    }
+  else if(isSpell) {
     auto& spl  = owner.script().spellDesc(splId);
     splCat     = SpellCategory(spl.spell_type);
     damageType = spl.damage_type;
@@ -2982,6 +3008,7 @@ void Npc::tick(uint64_t dt) {
     tickRandomAni();
 
   tickAggroLeash();
+  tickEffectHits();
 
   if(compatDiveLimit>=0) {
     // Gothic counts remaining milliseconds down under water, and refills them
@@ -3547,6 +3574,13 @@ void Npc::nextAiAction(AiQueue& queue, uint64_t dt) {
         break;
         }
 
+      // a character that talks does not hold the weapon in hand (unless it is an enemy)
+      if(!isPlayer() && !isMonster() && currentTarget==nullptr && !owner.script().hasDma() && !isEnemy(*act.target)) {
+        const auto ws = weaponState();
+        if(ws!=WeaponState::NoWeapon && ws!=WeaponState::Mage && canSwitchWeapon())
+          closeWeapon(false);
+        }
+
       if(act.target->interactive()==nullptr && !act.target->isAiBusy())
         act.target->stopWalkAnimation();
       if(interactive()==nullptr && !isAiBusy())
@@ -3774,6 +3808,8 @@ bool Npc::isPlayerEnabledState(const ::AiState& st) const {
   }
 
 void Npc::tickRoutine() {
+  tickLooseWeapon();
+
   if(!aiState.funcIni.isValid() && !isPlayer()) {
     auto r = currentRoutine();
     if(r.callback.isValid()) {
@@ -3804,6 +3840,20 @@ void Npc::tickRoutine() {
   const bool fastPath = (aiPolicy==NpcProcessPolicy::AiFar2 && routines.empty()); //HACK: don't process far away Npc
   if(aiState.loopNextTime<=owner.tickCount()) {
     aiState.loopNextTime = owner.tickCount() + perceptionTimeClampt();
+
+    // The character that warns the player about the weapon (ZS_AssessFighter) waits for the perception of the removed weapon. The perception
+    // is lost when the player puts the weapon away before the state has started, and 5 seconds later the character attacks. Here the state asks
+    // the player directly.
+    if(!isPlayer() && currentOther!=nullptr && currentOther->isPlayer() && hasPerc(PERC_ASSESSREMOVEWEAPON) && stateTime()>1500 &&
+       currentOther->weaponState()==WeaponState::NoWeapon) {
+      const auto* st = owner.script().findSymbol(aiState.funcIni.ptr);
+      if(st!=nullptr && (st->name()=="ZS_ASSESSFIGHTER" || st->name()=="ZS_ASSESSFIGHTERWAIT")) {
+        Log::d("[",displayName().data(),"] the player has put the weapon away, ",st->name());
+        perceptionProcess(*currentOther,nullptr,0,PERC_ASSESSREMOVEWEAPON);
+        return;
+        }
+      }
+
     int loop = LOOP_CONTINUE;
     if(aiState.funcLoop.isValid()) {
       static const float MAX_DIST = 300;
@@ -3888,6 +3938,76 @@ void Npc::tickAggroLeash() {
   setTarget(nullptr);
   fghAlgo.onClearTarget();
   }
+void Npc::takeEffectDamage(Npc& source, int32_t damage, int32_t damageType, uint64_t delayMs) {
+  if(damage<=0 || isDown())
+    return;
+  EffectHit h;
+  h.at     = owner.tickCount()+delayMs;
+  h.src    = &source;
+  h.damage = damage;
+  h.type   = damageType;
+  effectHits.push_back(h);
+  }
+
+void Npc::tickEffectHits() {
+  if(effectHits.empty())
+    return;
+  const uint64_t now = owner.tickCount();
+  for(size_t i=0; i<effectHits.size();) {
+    if(effectHits[i].at>now) {
+      ++i;
+      continue;
+      }
+    const EffectHit h = effectHits[i];
+    effectHits.erase(effectHits.begin()+int(i));
+    if(isDown() || h.src==nullptr)
+      continue;
+    DamageCalculator::Damage dmg = {};
+    for(size_t t=0; t<zenkit::DamageType::NUM; ++t)
+      if((h.type & (1<<t))!=0)
+        dmg[t] = h.damage;
+    takeDamage(*h.src,nullptr,COLL_DOEVERYTHING,0,true,&dmg);
+    }
+  }
+
+void Npc::tickLooseWeapon() {
+  // A character that walks about with a weapon in hand and has nothing to fight puts it away. The scripts do it with the perception
+  // of the removed weapon or at the end of the state, and when it is missed the character goes on with the weapon (and talks with it).
+  if(isPlayer() || isMonster() || isDown() || isTalk() || currentTarget!=nullptr || owner.script().hasDma()) {
+    looseWeaponSince = 0;
+    return;
+    }
+  const auto ws = weaponState();
+  if(ws==WeaponState::NoWeapon || ws==WeaponState::Mage || !aiState.funcIni.isValid() || !aiState.started) {
+    looseWeaponSince = 0;
+    return;
+    }
+
+  // only the state of the routine, and not the one that trains with a sword or the like
+  const auto* sym = owner.script().findSymbol(aiState.funcIni.ptr);
+  if(sym==nullptr || !isInRoutine(aiState.funcIni)) {
+    looseWeaponSince = 0;
+    return;
+    }
+  const auto name = std::string_view(sym->name());
+  if(name.find("PRACTICE")!=std::string_view::npos || name.find("TRAIN")!=std::string_view::npos || name.find("FIGHT")!=std::string_view::npos ||
+     name.find("ORC")!=std::string_view::npos      || name.find("TEST")!=std::string_view::npos) {
+    looseWeaponSince = 0;
+    return;
+    }
+
+  const uint64_t now = owner.tickCount();
+  if(looseWeaponSince==0) {
+    looseWeaponSince = now;
+    return;
+    }
+  if(now-looseWeaponSince<10000)
+    return;
+  looseWeaponSince = now;
+  Log::d("[",displayName().data(),"] walks about with a weapon in hand in ",name,", it puts the weapon away");
+  aiPush(AiQueue::aiRemoveWeapon());
+  }
+
 void Npc::setTarget(Npc *t) {
   if(currentTarget==t)
     return;
@@ -5425,8 +5545,52 @@ Npc::JumpStatus Npc::tryJump() {
 
   float dY    = jumpY - y;
 
+  // A low obstacle with gaps (a fence): the ray above falls through the gaps and finds only the ground behind it, so there is
+  // no ledge. If the top of the obstacle is in reach and the ground behind it is lower, climb to the top and go on from there.
+  // Only for the player: the characters of the world follow their routes and must not start to jump over fences.
+  auto vault = [&](JumpStatus& res) -> bool {
+    if(!isPlayer() || mvAlgo.isJumpUp())
+      return false;
+
+    const float minH  = 40.f;
+    const float from  = y + jumpMid + 20.f;
+    const float range = jumpMid*2.f + 40.f;
+    const Vec3  side  = Vec3{-s, 0, c}*10.f;
+
+    float top = -1e9f;
+    for(int i=1; i<=10; ++i) {
+      for(int j=-1; j<=1; ++j) {
+        const Vec3 at  = pos0 + dp*(float(i)/10.f) + side*float(j);
+        auto       hit = owner.physic()->landRay(Vec3(at.x,from,at.z), range);
+        if(hit.hasCol && hit.v.y>y+minH)
+          top = std::max(top,hit.v.y);
+        }
+      }
+    if(top<=y+minH || top>y+jumpMid)
+      return false;
+
+    // the ground behind: not much lower than the player, and lower than the top of the obstacle (else it is a slope, not a fence)
+    auto behind = owner.physic()->landRay(Vec3(pos0.x+dp.x*1.6f,from,pos0.z+dp.z*1.6f), range);
+    if(!behind.hasCol || behind.v.y<y-jumpMid || behind.v.y>top-20.f)
+      return false;
+
+    const float          h = top + 5.f;
+    const Vec3           posTop(pos0.x,h,pos0.z);
+    DynamicWorld::CollisionTest test;
+    if(!physic.testMove(posTop,pos0,test) || !physic.testMove(posTop+dp,posTop,test))
+      return false;
+
+    res.anim    = (top-y<=jumpLow) ? Anim::JumpUpLow : Anim::JumpUpMid;
+    res.height  = h;
+    res.noClimb = false;
+    return true;
+    };
+
   if(dY<=0.f ||
      !physic.testMove(pos2,pos1,info)) {
+    JumpStatus over;
+    if(vault(over))
+      return over;
     ret.anim    = Anim::JumpUp;
     ret.height  = y + jumpUp;
     ret.noClimb = true;

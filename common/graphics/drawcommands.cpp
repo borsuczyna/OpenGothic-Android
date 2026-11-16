@@ -43,7 +43,7 @@ bool DrawCommands::DrawCmd::isBindless() const {
 bool DrawCommands::DrawCmd::isMeshShader() const {
   if(!Shaders::options().doMeshShading)
     return false;
-  if(Material::isTesselated(alpha) && type==DrawCommands::Landscape && Resources::device().properties().tesselationShader)
+  if(Material::isTesselated(alpha) && type==DrawCommands::Landscape && Shaders::hasTesselation())
     return false;
   return true;
   }

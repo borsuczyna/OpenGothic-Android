@@ -402,6 +402,7 @@ final class SpineApi {
     }
 
     private static String post(String endpoint, String body) throws IOException {
+        Tls.ensure();
         HttpURLConnection c = (HttpURLConnection) new URL(API + endpoint).openConnection();
         if (c instanceof HttpsURLConnection)
             ((HttpsURLConnection) c).setSSLSocketFactory(new RsaCiphers());

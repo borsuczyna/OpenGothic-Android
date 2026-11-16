@@ -684,7 +684,7 @@ const RenderPipeline* Shaders::materialPipeline(const Material& mat, DrawCommand
   b.trivial      = trivial;
 
   auto& device = Resources::device();
-  if(mat.isTesselated() && device.properties().tesselationShader && t==DrawCommands::Landscape && true) {
+  if(mat.isTesselated() && hasTesselation() && t==DrawCommands::Landscape && true) {
     auto shVs = shaderByName(string_frm("main_", vsTok, typeVs, bindless, ".vert.sprv"));
     auto shTc = shaderByName(string_frm("main_", vsTok, typeVs, bindless, ".tesc.sprv"));
     auto shTe = shaderByName(string_frm("main_", vsTok, typeVs, bindless, ".tese.sprv"));
@@ -749,6 +749,13 @@ RenderPipeline Shaders::postEffect(std::string_view vsName, std::string_view fsN
 
 /// The same bindings and the same result in both variants (see shader/sky/clouds_lut_safe.comp). The original keeps the code path of the
 /// other GPUs unchanged; the safe one is for Mali, for the safe GPU mode and for a driver that refuses the original with an exception.
+/// The water is tessellated where the GPU can do it. Mali (Mali-G52 MC2, Redmi 14C): the water came out as black patches and the tessellation
+/// of a big patch is slow there; without it the waves are in the normals of the fragment shader only, as on the GPUs without tessellation.
+bool Shaders::hasTesselation() {
+  auto& gpu = Resources::device().properties();
+  return gpu.tesselationShader && !isMali(gpu.name);
+  }
+
 ComputePipeline Shaders::cloudsLutShader() {
   auto& gpu = Resources::device().properties();
   if(SafeGpu::isSafe() || isMali(gpu.name)) {

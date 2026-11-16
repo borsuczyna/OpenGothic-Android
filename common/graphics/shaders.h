@@ -42,6 +42,7 @@ class Shaders {
     static const Options& options();
 
     static bool isVsmSupported();
+    static bool hasTesselation();
     static bool isRtsmSupported();
     static bool isLightsTreeSupported();
     static bool isGi1Supported();

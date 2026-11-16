@@ -31,6 +31,7 @@
 #include "game/worldmarkers.h"
 #include "scripting/gameapi.h"
 #include "utils/dbgpainter.h"
+#include "utils/crashlog.h"
 
 #include "commandline.h"
 #include "gothic.h"
@@ -1679,6 +1680,9 @@ void MainWindow::setFullscreen(bool fs) {
   }
 
 void MainWindow::render(){
+  // what the frame was doing, for the report of the lack of memory
+  const char* phase = "start";
+  static int oomFrames = 0;
   try {
     static uint64_t time=Application::tickCount();
 
@@ -1704,6 +1708,7 @@ void MainWindow::render(){
       once player position is updated, animation bones(cameraBone in particular) can be updated
       lastly - camera position
       */
+    phase = "tick";
     uint64_t dt = 0;
     try {
       dt = tick();
@@ -1719,6 +1724,7 @@ void MainWindow::render(){
       errorScreen.report("Exception of the game",e.what());
       }
 
+    phase = "fence";
     auto& sync = fence[cmdId];
     if(!sync.wait(0)) {
       // GPU rendering is not done, pass to next frame
@@ -1728,6 +1734,7 @@ void MainWindow::render(){
     Resources::resetRecycled(cmdId);
     Resources::updateTextureQuality(Gothic::settingsGetF("INTERNAL","texDetailIndex"));
 
+    phase = "ui-paint";
     if(video.isActive()) {
       video.paint(device,cmdId);
       uiLayer.clear();
@@ -1741,6 +1748,7 @@ void MainWindow::render(){
       PaintEvent p(numOverlay,atlas,this->w(),this->h());
       inventory.paintNumOverlay(p);
       }
+    phase = "ui-mesh";
     uiMesh [cmdId].update(device,uiLayer);
     numMesh[cmdId].update(device,numOverlay);
 
@@ -1750,6 +1758,7 @@ void MainWindow::render(){
     // Models of the inventory are drawn over everything else, hide them below a document
     inventory.setCovered(document.isActive() || chapter.isActive() || video.isActive());
 
+    phase = "render";
     CommandBuffer& cmd = commands[cmdId];
     {
     auto enc = cmd.startEncoding(device);
@@ -1765,6 +1774,7 @@ void MainWindow::render(){
       renderer.drawTouchItems(swapchain[swapchain.currentImage()],enc,mobileItems[cmdId]);
 #endif
     }
+    phase = "submit";
     sync = device.submit(cmd);
     device.present(swapchain);
     cmdId = (cmdId+1u)%Resources::MaxFramesInFlight;
@@ -1782,6 +1792,26 @@ void MainWindow::render(){
     if(Gothic::inst().isBenchmarkMode() && Gothic::inst().world()!=nullptr && Gothic::inst().world()->currentCs()!=nullptr)
       benchmark.push(t-time);
     time = t;
+
+#if defined(__ANDROID__)
+    // the memory of the process, every 5 seconds, in the log that the player sends: the crash with std::bad_alloc is a matter of the time and
+    // of the memory, and the last line shows how it grew (Debug lines are written to the file at once)
+    {
+    static uint64_t nextMemLog = 0;
+    if(t>=nextMemLog) {
+      nextMemLog = t+5000;
+      Log::d("[mem] ",t/1000," s: ",CrashLog::memoryInfo());
+      }
+    }
+#endif
+    oomFrames = 0;
+    }
+  catch(const std::bad_alloc&) {
+    // a failed allocation of this frame: the frame is dropped, and the game goes on if it was a one-off. When it is not (30 frames in a row),
+    // the process ends as before, with the report of the crash.
+    Log::e("out of memory (std::bad_alloc) in the frame, phase: ",phase,", the frames lost in a row: ",oomFrames+1,", ",CrashLog::memoryInfo());
+    if(++oomFrames>=30)
+      throw;
     }
   catch(const Tempest::SwapchainSuboptimal&) {
     Log::e("swapchain is outdated - reset renderer");

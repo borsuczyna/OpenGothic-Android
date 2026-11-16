@@ -2036,6 +2036,20 @@ void GameScript::wld_playeffect(std::string_view visual, std::shared_ptr<zenkit:
   if(aiProcessPolicy>=NpcProcessPolicy::AiFar2)
     return;
 
+  if(damage>0 && damageType!=0) {
+    // an effect that hurts (the fireball of the Sleeper): the effect flies from the source to the target, the damage lands when it arrives
+    auto dst = findNpcById(targetId);
+    auto src = findNpcById(sourceId);
+    if(dst!=nullptr && src!=nullptr) {
+      if(const VisualFx* fx = Gothic::inst().loadVisualFx(visual))
+        src->startEffect(*dst,*fx);
+      const float    dist  = (dst->position()-src->position()).length();
+      const uint64_t delay = uint64_t(std::min(2500.f,std::max(200.f,dist/1.5f)));   // ~15 m/s
+      dst->takeEffectDamage(*src,damage,damageType,delay);
+      return;
+      }
+    }
+
   if(isProjectile!=0 || damageType!=0 || damage!=0 || effectLevel!=0) {
     // TODO
     Log::i("effect not implemented [",visual.data(),"]");
@@ -2626,9 +2640,20 @@ std::shared_ptr<zenkit::INpc> GameScript::npc_getlookattarget(std::shared_ptr<ze
   return npc && npc->lookAtTarget() ? npc->lookAtTarget()->handlePtr() : nullptr;
   }
 
-int GameScript::npc_getdisttonpc(std::shared_ptr<zenkit::INpc> aRef, std::shared_ptr<zenkit::INpc> bRef) {
-  auto a = findNpc(aRef);
-  auto b = findNpc(bRef);
+int GameScript::npc_getdisttonpc(std::shared_ptr<zenkit::DaedalusInstance> aRef, std::shared_ptr<zenkit::DaedalusInstance> bRef) {
+  auto a = findNpcById(aRef);
+  auto b = findNpcById(bRef);
+
+  if(a!=nullptr && b==nullptr) {
+    // B_FetchWeapon of Gothic 1 asks Npc_GetDistToNpc(self, item): the original engine takes any vob here, the item is the place of a weapon
+    // that lies about (the type of the argument was checked: an exception of the scripts, the character did not fetch the weapon)
+    if(auto itm = findItemById(bRef)) {
+      const float len = (itm->position()-a->position()).length();
+      if(len>float(std::numeric_limits<int32_t>::max()))
+        return std::numeric_limits<int32_t>::max();
+      return int(len);
+      }
+    }
 
   if(a==nullptr || b==nullptr)
     return std::numeric_limits<int32_t>::max();

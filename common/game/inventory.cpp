@@ -22,6 +22,10 @@ static bool sameSlot(std::string_view a, std::string_view b) {
   return true;
   }
 
+static bool isWeapon(const Item& it) {
+  return (uint32_t(it.mainFlag()) & (ITM_CAT_NF | ITM_CAT_FF))!=0;
+  }
+
 const Item& Inventory::Iterator::operator*() const {
   return *owner->items[at];
   }
@@ -32,6 +36,9 @@ const Item* Inventory::Iterator::operator ->() const {
 
 bool Inventory::Iterator::isEquipped() const {
   auto& cur = *owner->items[at];
+  // what is on a body that is searched is not "equipped" for the player: it is taken, not put on or off
+  if(type==T_Ransack)
+    return false;
   return subId==0 && cur.isEquipped();
   }
 
@@ -84,7 +91,8 @@ void Inventory::Iterator::skipHidden() {
       ++at;
     }
   if(type==T_Ransack) {
-    while(at<it.size() && it[at]->isEquipped()) {
+    // the worn armor, rings and the like stay on the body, but a weapon can be taken also when it is on the belt or on the back
+    while(at<it.size() && it[at]->isEquipped() && !isWeapon(*it[at])) {
       ++at;
       }
     }

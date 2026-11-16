@@ -307,6 +307,7 @@ public final class SpineDetailsActivity extends Activity {
         if (file.isFile() && file.length() > 0)
             return file;
         File part = new File(dir, name + ".part");
+        Tls.ensure();
         HttpURLConnection c = (HttpURLConnection) new URL(SCREENS + project.id + "/screens/" + SpineInstaller.encode(e.file)).openConnection();
         try {
             c.setConnectTimeout(15000);

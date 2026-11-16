@@ -1,6 +1,7 @@
 #include "movealgo.h"
 
 #include <Tempest/Log>
+#include <unordered_map>
 
 #include "world/objects/npc.h"
 #include "world/objects/interactive.h"
@@ -255,7 +256,7 @@ bool MoveAlgo::implTick(uint64_t dt, MvFlags moveFlg) {
     return false;
 
   // jump animation (lift off)
-  if(bs==BS_JUMP && npc.isFlyAnim() && state!=InAir && state!=Jump && state!=JumpUp) {
+  if(bs==BS_JUMP && (npc.isFlyAnim() || npc.isJumpAnim()) && state!=InAir && state!=Jump && state!=JumpUp) {
     setState(Jump);
     return true;
     }
@@ -1003,6 +1004,24 @@ void MoveAlgo::onMoveFailed(const Tempest::Vec3& dp, const DynamicWorld::Collisi
         npc.setDirection(npc.rotation()+stp);
         } else {
         auto jc = npc.tryJump();
+        if(npc.processPolicy()!=NpcProcessPolicy::Player) {
+          // DIAGNOSTICS: a route that leads into a wall, the log has the character, the waypoints and what is in the way
+          static std::unordered_map<const Npc*,uint64_t> lastLog;
+          const uint64_t now  = npc.world().tickCount();
+          auto&          last = lastLog[&npc];
+          if(now>=last+5000) {
+            last = now;
+            auto  p    = npc.position();
+            auto* from = npc.currentWayPoint();
+            auto* to   = npc.go2.wp;
+            Tempest::Log::d("[blocked] ", npc.displayName().data(), " (", npc.instanceSymbol(), ") at ", p.x, " ", p.y, " ", p.z,
+                            " hint ", int(npc.moveHint()), " from ", from!=nullptr ? from->name.c_str() : "-",
+                            " to ", to!=nullptr ? to->name.c_str() : "-",
+                            " normal ", info.normal.x, " ", info.normal.y, " ", info.normal.z,
+                            " vob ", info.vob!=nullptr, " npc ", info.npc!=nullptr, " land ", info.landCol,
+                            " jump ", int(jc.anim), " noClimb ", jc.noClimb, " height ", jc.height);
+            }
+          }
         if(jc.noClimb)
           npc.setDirection(npc.rotation()+stp); else
         if(!npc.startClimb(jc))

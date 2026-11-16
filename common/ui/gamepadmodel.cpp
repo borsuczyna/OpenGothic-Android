@@ -18,6 +18,7 @@ constexpr float    LookPitchRate = 90.f;
 constexpr float    LookCurve     = 1.6f;    // a small deflection moves the camera slower than a linear one: aiming
 constexpr float    MoveOn        = 0.30f, MoveOff = 0.20f;
 
+constexpr float    SideOn        = 0.35f, SideOff = 0.25f;   // the side steps of the Touch style with a weapon drawn
 constexpr float    MenuOn        = 0.55f, MenuOff = 0.40f;
 constexpr float    TriggerOn     = 0.50f, TriggerOff = 0.30f;
 constexpr uint64_t RepeatDelay   = 380;    // ms before a held direction repeats in a menu
@@ -122,17 +123,32 @@ void Gamepad::update(Controls& controls, Mode next, uint64_t now, float look) {
   }
 
 void Gamepad::game(Controls& c, float dt, float look) {
-  // Left stick: forward walks where the stick points (a diagonal is a walk off the direction of the hero, the hero does not turn),
-  // a stick pushed to the side or back turns the hero as the touch stick does.
+  // Left stick. With a weapon drawn (the side steps are on offer then) both styles are the same: the stick walks forward, goes back and
+  // steps to the side; it does not turn the hero and there is no diagonal walk.
+  // Without a weapon, the style Diagonal: forward walks where the stick points (a diagonal is a walk off the direction of the hero,
+  // the hero does not turn), a stick pushed to the side or back turns the hero as the touch stick does.
+  // The style Touch: forward and back, a push to the side turns the hero (a diagonal is a walk along an arc).
   // While the target is locked the push to the side is a side step around it, see PlayerControl.
+  const bool touch = moveStyle==Style::Touch;
+  const bool fight = c.available(Key::StrafeLeft) || c.available(Key::StrafeRight);
   float sx = 0, sy = 0;
   radial(lx,ly,StickDead,sx,sy);
   const bool forward = hysteresis(moveUp,-sy,MoveOn,MoveOff);
   c.padKey(Key::Up,   forward);
   c.padKey(Key::Down, hysteresis(moveDown,sy,MoveOn,MoveOff));
 
+  bool stepLeft = false, stepRight = false;
+  if(fight) {
+    stepLeft  = hysteresis(moveLeft, -sx,SideOn,SideOff);
+    stepRight = hysteresis(moveRight, sx,SideOn,SideOff);
+    } else {
+    moveLeft = moveRight = false;
+    }
+  c.padKey(Key::StrafeLeft, stepLeft);
+  c.padKey(Key::StrafeRight,stepRight);
+
   float yaw = 0;
-  if(forward) {
+  if(forward && !touch && !fight) {
     // the angle of the stick to the right of straight ahead; the angle of the hero grows to the left, hence the minus
     const float a = std::atan2(sx,-sy)*180.f/3.14159265f;
     if(std::abs(a)>DiagDead)
@@ -140,7 +156,8 @@ void Gamepad::game(Controls& c, float dt, float look) {
     }
   c.padMove(yaw,sx);
 
-  if(!forward && std::abs(sx)>StickTurnDead) {
+  const bool turns = !fight && (touch || !forward);
+  if(turns && std::abs(sx)>StickTurnDead) {
     const float turn = std::copysign((std::abs(sx)-StickTurnDead)/(1.f-StickTurnDead),sx);
     c.padLook(turn*StickTurnRate*dt,0);
     }

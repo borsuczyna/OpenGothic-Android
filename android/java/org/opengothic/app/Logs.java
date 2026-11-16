@@ -1,6 +1,9 @@
 package org.opengothic.app;
 
+import android.annotation.TargetApi;
 import android.app.Activity;
+import android.app.ActivityManager;
+import android.app.ApplicationExitInfo;
 import android.content.Context;
 import android.content.Intent;
 
@@ -9,6 +12,10 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.nio.charset.StandardCharsets;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.List;
+import java.util.Locale;
 
 /**
  * The logs of the game: the engine writes log.txt and crash.log to the files of the application, where only the application
@@ -69,8 +76,63 @@ final class Logs {
         String crash = tail(new File(dir, "crash.log"), maxBytes / 3);
         if (!crash.isEmpty())
             b.append("\n---- crash.log\n").append(crash).append('\n');
+        // why the game ended when it did not crash: what the system did to its activity, and what it says about the end of the process
+        String life = tail(new File(dir, "lifecycle.txt"), 4000);
+        if (!life.isEmpty())
+            b.append("\n---- lifecycle.txt (the activity of the game, seconds since its start)\n").append(life).append('\n');
+        String exits = exitReasons(c);
+        if (!exits.isEmpty())
+            b.append("\n---- the system about the end of the process (newest first)\n").append(exits);
         b.append("\n---- log.txt\n").append(log);
         return b.toString();
+    }
+
+    @TargetApi(30)
+    private static String exitReasons(Context c) {
+        if (android.os.Build.VERSION.SDK_INT < 30)
+            return "";
+        try {
+            ActivityManager am = (ActivityManager) c.getSystemService(Context.ACTIVITY_SERVICE);
+            if (am == null)
+                return "";
+            List<ApplicationExitInfo> list = am.getHistoricalProcessExitReasons(c.getPackageName(), 0, 5);
+            SimpleDateFormat format = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.ROOT);
+            StringBuilder b = new StringBuilder();
+            for (ApplicationExitInfo i : list) {
+                b.append(format.format(new Date(i.getTimestamp()))).append(' ').append(i.getProcessName()).append(": ")
+                        .append(reasonName(i.getReason())).append(" (").append(i.getReason()).append("), status ").append(i.getStatus())
+                        .append(", importance ").append(i.getImportance()).append(", rss ").append(i.getRss() / 1024).append(" MB");
+                String description = i.getDescription();
+                if (description != null && !description.isEmpty())
+                    b.append(", ").append(description);
+                b.append('\n');
+            }
+            return b.toString();
+        } catch (RuntimeException e) {
+            return "";
+        }
+    }
+
+    private static String reasonName(int reason) {
+        switch (reason) {
+            case 1:  return "EXIT_SELF";
+            case 2:  return "SIGNALED";
+            case 3:  return "LOW_MEMORY";
+            case 4:  return "CRASH";
+            case 5:  return "CRASH_NATIVE";
+            case 6:  return "ANR";
+            case 7:  return "INITIALIZATION_FAILURE";
+            case 8:  return "PERMISSION_CHANGE";
+            case 9:  return "EXCESSIVE_RESOURCE_USAGE";
+            case 10: return "USER_REQUESTED";
+            case 11: return "USER_STOPPED";
+            case 12: return "DEPENDENCY_DIED";
+            case 13: return "OTHER";
+            case 14: return "FREEZER";
+            case 15: return "PACKAGE_STATE_CHANGE";
+            case 16: return "PACKAGE_UPDATED";
+            default: return "UNKNOWN";
+        }
     }
 
     static String version(Context c) {

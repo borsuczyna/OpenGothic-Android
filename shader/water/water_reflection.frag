@@ -152,6 +152,9 @@ void main() {
 
   const float depth   = texelFetch (gbufDepth,  ivec2(gl_FragCoord.xy), 0).r;
   const vec3  normal  = normalFetch(gbufNormal, ivec2(gl_FragCoord.xy));
+  // a broken normal (NaN) would turn the pixel black: the result is added to the scene
+  if(!(dot(normal,normal) > 0.25))
+    discard;
 
   const vec4  start4  = scene.viewProjectInv*vec4(fragCoord.x, fragCoord.y, depth, 1.0);
   const vec3  start   = start4.xyz/start4.w;
@@ -178,6 +181,9 @@ void main() {
     }
 
   vec3 r = reflection(scr.xyz/scr.w,start,refl,depth,sky) * WaterAlbedo * f;
+  // NaN and Inf are not allowed: the blend adds the result to the scene, and a single NaN makes the pixel black
+  if(!(dot(r,r) < 1.0e12))
+    discard;
   // vec3  r = reflection(scr,start,refl,depth,sky);
 
   outColor = vec4(r, 0.0);

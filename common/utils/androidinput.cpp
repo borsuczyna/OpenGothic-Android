@@ -51,7 +51,7 @@ const char* const IconFiles[AndroidInput::IconCount] = {
 
 const char* const SettingNames[Mobile::SettingCount] = {
   "buttons", "resolution", "shadows", "effects", "fps", "deadzone", "sensitivity", "vibration", "gui",
-  "speed", "hudnumbers", "hudxp", "strafe", "autolock"
+  "speed", "hudnumbers", "hudxp", "strafe", "autolock", "reflections"
   };
 
 // Gives access to the dispatch functions of SystemApi
@@ -185,6 +185,7 @@ int nextValue(int setting, int value) {
     case Mobile::SettingHudXp:
     case Mobile::SettingStrafe:
     case Mobile::SettingAutoLock:
+    case Mobile::SettingReflections:
       return value ? 0 : 1;
     }
   return value;
@@ -202,6 +203,8 @@ std::string settingText(int setting, const std::string& label) {
     return value ? "XP counter: ON" : "XP counter: OFF";
   if(setting==Mobile::SettingStrafe)
     return value ? "Step buttons: ON" : "Step buttons: OFF";
+  if(setting==Mobile::SettingReflections)
+    return value ? "Water reflections: ON" : "Water reflections: sky only";
   if(setting==Mobile::SettingAutoLock)
     return value ? "Auto lock on weapon draw: ON" : "Auto lock on weapon draw: OFF";
   if(setting==Mobile::SettingSpeed)
@@ -301,6 +304,8 @@ AndroidInput::Preferences AndroidInput::preferences() {
     ret.strafe = Gothic::settingsGetI(Section,SettingNames[Mobile::SettingStrafe])!=0 ? 1 : 0;
   if(Gothic::settingsGetI(Section,"version")>=7)
     ret.autoLock = Gothic::settingsGetI(Section,SettingNames[Mobile::SettingAutoLock])!=0 ? 1 : 0;
+  if(Gothic::settingsGetI(Section,"version")>=8)
+    ret.reflections = Gothic::settingsGetI(Section,SettingNames[Mobile::SettingReflections])!=0 ? 1 : 0;
   return ret;
   }
 
@@ -321,10 +326,11 @@ void AndroidInput::Controller::bind() {
     Gothic::settingsSetI(Section,SettingNames[Mobile::SettingHudXp],      def.hudXp);
     Gothic::settingsSetI(Section,SettingNames[Mobile::SettingStrafe],     def.strafe);
     Gothic::settingsSetI(Section,SettingNames[Mobile::SettingAutoLock],   def.autoLock);
-    Gothic::settingsSetI(Section,"version",7);
+    Gothic::settingsSetI(Section,SettingNames[Mobile::SettingReflections],def.reflections);
+    Gothic::settingsSetI(Section,"version",8);
     Gothic::flushSettings();
     } else
-  if(Gothic::settingsGetI(Section,"version")<7) {
+  if(Gothic::settingsGetI(Section,"version")<8) {
     // settings saved before the vibration, the scale of the interface, the fast forward, the side steps and the auto lock were added
     const Preferences def;
     const int version = Gothic::settingsGetI(Section,"version");
@@ -344,7 +350,10 @@ void AndroidInput::Controller::bind() {
     // the lock of the target by itself is off until the player switches it on
     if(version<7)
       Gothic::settingsSetI(Section,SettingNames[Mobile::SettingAutoLock],def.autoLock);
-    Gothic::settingsSetI(Section,"version",7);
+    // the reflections of the water were always on (the screen space): they stay until the player switches them off
+    if(version<8)
+      Gothic::settingsSetI(Section,SettingNames[Mobile::SettingReflections],def.reflections);
+    Gothic::settingsSetI(Section,"version",8);
     Gothic::flushSettings();
     }
   loadHudPlaces();
