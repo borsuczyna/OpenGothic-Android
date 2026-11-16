@@ -79,6 +79,7 @@ enum Setting : int {
   SettingHudXp,
   SettingStrafe,
   SettingAutoLock,
+  SettingReflections,
   SettingCount
   };
 

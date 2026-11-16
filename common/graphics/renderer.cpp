@@ -148,6 +148,7 @@ void Renderer::setupSettings() {
     settings.vidResIndex       = pref.resolution>=100 ? 0.f : pref.resolution>=75 ? 1.f : pref.resolution>=50 ? 2.f : 3.f;
     settings.shadowResolution  = uint32_t(std::clamp(pref.shadows,0,2048));
     settings.zCloudShadowScale = pref.effects!=0;
+    settings.zEnvMappingEnabled = pref.reflections!=0;
   }
 #endif
   settings.aaEnabled   = (Shaders::options().aaPreset>0) && (settings.vidResIndex==0);
