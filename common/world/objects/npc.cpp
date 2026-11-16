@@ -5425,8 +5425,52 @@ Npc::JumpStatus Npc::tryJump() {
 
   float dY    = jumpY - y;
 
+  // A low obstacle with gaps (a fence): the ray above falls through the gaps and finds only the ground behind it, so there is
+  // no ledge. If the top of the obstacle is in reach and the ground behind it is lower, climb to the top and go on from there.
+  // Only for the player: the characters of the world follow their routes and must not start to jump over fences.
+  auto vault = [&](JumpStatus& res) -> bool {
+    if(!isPlayer() || mvAlgo.isJumpUp())
+      return false;
+
+    const float minH  = 40.f;
+    const float from  = y + jumpMid + 20.f;
+    const float range = jumpMid*2.f + 40.f;
+    const Vec3  side  = Vec3{-s, 0, c}*10.f;
+
+    float top = -1e9f;
+    for(int i=1; i<=10; ++i) {
+      for(int j=-1; j<=1; ++j) {
+        const Vec3 at  = pos0 + dp*(float(i)/10.f) + side*float(j);
+        auto       hit = owner.physic()->landRay(Vec3(at.x,from,at.z), range);
+        if(hit.hasCol && hit.v.y>y+minH)
+          top = std::max(top,hit.v.y);
+        }
+      }
+    if(top<=y+minH || top>y+jumpMid)
+      return false;
+
+    // the ground behind: not much lower than the player, and lower than the top of the obstacle (else it is a slope, not a fence)
+    auto behind = owner.physic()->landRay(Vec3(pos0.x+dp.x*1.6f,from,pos0.z+dp.z*1.6f), range);
+    if(!behind.hasCol || behind.v.y<y-jumpMid || behind.v.y>top-20.f)
+      return false;
+
+    const float          h = top + 5.f;
+    const Vec3           posTop(pos0.x,h,pos0.z);
+    DynamicWorld::CollisionTest test;
+    if(!physic.testMove(posTop,pos0,test) || !physic.testMove(posTop+dp,posTop,test))
+      return false;
+
+    res.anim    = (top-y<=jumpLow) ? Anim::JumpUpLow : Anim::JumpUpMid;
+    res.height  = h;
+    res.noClimb = false;
+    return true;
+    };
+
   if(dY<=0.f ||
      !physic.testMove(pos2,pos1,info)) {
+    JumpStatus over;
+    if(vault(over))
+      return over;
     ret.anim    = Anim::JumpUp;
     ret.height  = y + jumpUp;
     ret.noClimb = true;
