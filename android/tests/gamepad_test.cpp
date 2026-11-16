@@ -18,15 +18,19 @@ using namespace Mobile;
 
 namespace {
 
+// the keys that a character without a weapon in the hand does not have
+const uint64_t NoWeapon = ~(keyMask(Key::StrafeLeft)|keyMask(Key::StrafeRight)|keyMask(Key::AttackLeft)|keyMask(Key::AttackRight)|keyMask(Key::Block));
+
 struct Rig {
   Controls c;
   Gamepad  pad;
   uint64_t now = 1000;
   std::vector<Event> log;
 
-  explicit Rig(Mode mode=Mode::Game) {
+  /// armed: the weapon is in the hand (the side steps and the blows are available)
+  explicit Rig(Mode mode=Mode::Game, bool armed=true) {
     c.configure(1920,1080,mode);
-    c.availability(~uint64_t(0),true,true,true);
+    c.availability(armed ? ~uint64_t(0) : NoWeapon,true,true,true);
     frame(0);
     }
 
@@ -86,8 +90,8 @@ void leftStick() {
   }
 
 void sideTurn() {
-  // a push to the side turns the hero as the touch stick does, never a step to the side
-  Rig r;
+  // without a weapon a push to the side turns the hero as the touch stick does, never a step to the side
+  Rig r(Mode::Game,false);
   r.pad.axes(1,0,0,0,0,0);
   for(int i=0; i<10; ++i)
     r.frame(100);
@@ -105,7 +109,7 @@ void sideTurn() {
   CHECK(r.c.moveSide()<-0.99f);
 
   // the right stick turns faster than the left one
-  Rig q;
+  Rig q(Mode::Game,false);
   q.pad.axes(1,0,0,0,0,0);
   for(int i=0; i<10; ++i)
     q.frame(100);
@@ -117,7 +121,7 @@ void sideTurn() {
   CHECK(q.yaw()>left);
 
   // back and to the side: a back step and a turn, no diagonal
-  Rig b;
+  Rig b(Mode::Game,false);
   b.pad.axes(0.8f,0.8f,0,0,0,0);
   for(int i=0; i<10; ++i)
     b.frame(100);
@@ -127,8 +131,8 @@ void sideTurn() {
   }
 
 void diagonal() {
-  // straight ahead and a small lateral deviation walk straight and do not turn
-  Rig r;
+  // without a weapon: straight ahead and a small lateral deviation walk straight and do not turn
+  Rig r(Mode::Game,false);
   r.pad.axes(0,-1,0,0,0,0);
   r.frame();
   CHECK(r.c.moveYaw()==0);
@@ -139,7 +143,7 @@ void diagonal() {
   CHECK(r.c.moveYaw()==0);
 
   // forward and to the right: a diagonal walk, the hero does not turn and does not step to the side
-  Rig d;
+  Rig d(Mode::Game,false);
   d.pad.axes(0.8f,-0.8f,0,0,0,0);
   for(int i=0; i<10; ++i)
     d.frame(100);
@@ -164,12 +168,105 @@ void diagonal() {
   CHECK(d.count(Event::Up,Key::Up)==1);
 
   // a change of the screen drops the diagonal
-  Rig s;
+  Rig s(Mode::Game,false);
   s.pad.axes(0.8f,-0.8f,0,0,0,0);
   s.frame();
   CHECK(s.c.moveYaw()!=0);
   s.frameIn(Mode::Menu);
   CHECK(s.c.moveYaw()==0 && s.c.moveSide()==0);
+  }
+void touchStyle() {
+  const uint64_t noWeapon = ~(keyMask(Key::StrafeLeft)|keyMask(Key::StrafeRight)|keyMask(Key::AttackLeft)|keyMask(Key::AttackRight)|keyMask(Key::Block));
+
+  // no weapon: forward and back, a push to the side turns, a diagonal is an arc (as the touch stick)
+  Rig r;
+  r.pad.style(Gamepad::Style::Touch);
+  r.c.availability(noWeapon,true,true,true);
+  r.pad.axes(1,0,0,0,0,0);
+  for(int i=0; i<10; ++i)
+    r.frame(100);
+  CHECK(r.count(Event::Down,Key::StrafeRight)==0 && r.count(Event::Down,Key::Up)==0);
+  CHECK(std::abs(r.yaw()-100.f)<1.f);
+
+  Rig a;
+  a.pad.style(Gamepad::Style::Touch);
+  a.c.availability(noWeapon,true,true,true);
+  a.pad.axes(0.8f,-0.8f,0,0,0,0);
+  for(int i=0; i<10; ++i)
+    a.frame(100);
+  CHECK(a.count(Event::Down,Key::Up)==1);
+  CHECK(a.yaw()>20.f && a.yaw()<100.f);      // the arc: it walks and turns
+  CHECK(a.c.moveYaw()==0);                   // not the diagonal walk
+  CHECK(a.count(Event::Down,Key::StrafeRight)==0);
+
+  Rig s;
+  s.pad.style(Gamepad::Style::Touch);
+  s.c.availability(noWeapon,true,true,true);
+  s.pad.axes(0.2f,-1,0,0,0,0);               // a small lateral deviation while walking does not turn
+  s.frame(100);
+  CHECK(s.count(Event::Down,Key::Up)==1 && s.yaw()==0);
+
+  // a weapon in the hand: the walk, back and the side steps, no turn
+  Rig f;
+  f.pad.style(Gamepad::Style::Touch);
+  f.pad.axes(1,0,0,0,0,0);
+  for(int i=0; i<10; ++i)
+    f.frame(100);
+  CHECK(f.count(Event::Down,Key::StrafeRight)==1);
+  CHECK(f.count(Event::Down,Key::Up)==0 && f.yaw()==0);
+  f.pad.axes(-1,0,0,0,0,0);
+  f.frame();
+  CHECK(f.count(Event::Up,Key::StrafeRight)==1 && f.count(Event::Down,Key::StrafeLeft)==1);
+  f.pad.axes(0,-1,0,0,0,0);
+  f.frame();
+  CHECK(f.count(Event::Down,Key::Up)==1 && f.count(Event::Up,Key::StrafeLeft)==1);
+  f.pad.axes(0,1,0,0,0,0);
+  f.frame();
+  CHECK(f.count(Event::Down,Key::Down)==1 && f.count(Event::Up,Key::Up)==1);
+  f.pad.axes(0.8f,-0.8f,0,0,0,0);            // forward and a side step together
+  f.frame();
+  CHECK(f.count(Event::Down,Key::Up)==2 && f.count(Event::Down,Key::StrafeRight)==2);
+  CHECK(f.yaw()==0 && f.c.moveYaw()==0);
+  f.pad.axes(0,0,0,0,0,0);
+  f.frame();
+  CHECK(f.count(Event::Up,Key::StrafeRight)==2 && f.count(Event::Up,Key::Up)==2);
+
+  // the weapon is put away while the stick is held to the side: the step is let go and the stick turns
+  Rig g;
+  g.pad.style(Gamepad::Style::Touch);
+  g.pad.axes(1,0,0,0,0,0);
+  g.frame(100);
+  CHECK(g.count(Event::Down,Key::StrafeRight)==1 && g.yaw()==0);
+  g.c.availability(noWeapon,true,true,true);
+  g.frame(100);
+  CHECK(g.count(Event::Up,Key::StrafeRight)==1);
+  CHECK(g.yaw()>0);
+
+  // the style Diagonal with a weapon in the hand is the same: the side steps, no turn, no diagonal
+  Rig d;
+  d.pad.axes(1,0,0,0,0,0);
+  for(int i=0; i<10; ++i)
+    d.frame(100);
+  CHECK(d.count(Event::Down,Key::StrafeRight)==1 && d.yaw()==0);
+  d.pad.axes(0.8f,-0.8f,0,0,0,0);
+  d.frame();
+  CHECK(d.count(Event::Down,Key::Up)==1 && d.yaw()==0 && d.c.moveYaw()==0);
+  d.pad.axes(0,1,0,0,0,0);
+  d.frame();
+  CHECK(d.count(Event::Down,Key::Down)==1 && d.count(Event::Up,Key::StrafeRight)==1 && d.yaw()==0);
+  // the weapon is put away: the stick is the diagonal walk again
+  d.c.availability(noWeapon,true,true,true);
+  d.pad.axes(0.8f,-0.8f,0,0,0,0);
+  d.frame(100);
+  CHECK(std::abs(d.c.moveYaw()+45.f)<1.f && d.count(Event::Down,Key::StrafeRight)==1);
+
+  // the right stick is the same in both styles
+  Rig c;
+  c.pad.style(Gamepad::Style::Touch);
+  c.pad.axes(0,0,1,0,0,0);
+  for(int i=0; i<10; ++i)
+    c.frame(100);
+  CHECK(std::abs(c.yaw()-150.f)<1.f);
   }
 void camera() {
   Rig r;
@@ -414,6 +511,7 @@ int main() {
   leftStick();
   sideTurn();
   diagonal();
+  touchStyle();
   camera();
   buttons();
   bumpers();

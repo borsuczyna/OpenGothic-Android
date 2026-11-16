@@ -22,6 +22,14 @@ Układ wzorowany na zGamePad (Gratt-5r2/zGamePad, domyślny plik `Utils/controls
 | Start | menu |
 | A w przemianie | powrót do ludzkiej postaci (klawisz Enter, który gra daje tylko w przemianie) |
 
+## Styl lewej gałki
+
+Ustawienia gry, wiersz **Gamepad movement** przełącza dwa style (domyślnie Diagonal). Prawa gałka jest taka sama w obu.
+
+- **Z broni w ręku** (gdy gra pokazuje kroki w bok) oba style są takie same: gałka daje chód do przodu, krok w tył i kroki w bok, nie obraca postaci i nie ma ruchu po skosie.
+- **Bez broni, Diagonal**: tak jak w tabeli wyżej (ruch po skosie, sama gałka w bok obraca, przy celu krok w bok).
+- **Bez broni, Touch style**: jak lewy drążek ekranu dotykowego. Przód i tył chodzą, wychylenie w bok obraca postać (100°/s), przód z bokiem to marsz łukiem.
+
 ## Menu, dialogi, ekwipunek, wytrych, wideo
 
 - gałka lub D-pad wybierają (powtarzanie po 380 ms co 110 ms), A zatwierdza, B cofa, Start zamyka;
@@ -52,7 +60,7 @@ Zdarzenia ruchu z pada nie trafiają już do obsługi dotyku, wcześniej gałki 
 c++ -std=c++17 -I common android/tests/gamepad_test.cpp common/ui/gamepadmodel.cpp common/ui/mobilecontrolsmodel.cpp && ./a.out
 ```
 
-Sprawdzone: obrót lewej gałki, ruch po skosie, krok w bok przy celu, kamera i martwa strefa, przyciski i spusty, bumpery z bronią i bez, menu z powtarzaniem,
+Sprawdzone: obrót lewej gałki, ruch po skosie, krok w bok przy celu, styl Touch (obrót, kroki z bronią), kamera i martwa strefa, przyciski i spusty, bumpery z bronią i bez, menu z powtarzaniem,
 zmiana ekranu z trzymanym przyciskiem, ekwipunek, wytrych, zgodność z klawiaturą i dotykiem, wejście NaN / poza zakresem.
 Kod odczytu zdarzeń Androida (`onPadKey`, `onPadMotion`) sprawdzony tylko składniowo z atrapami nagłówków NDK.
 **Nie sprawdzony na prawdziwym padzie.**
