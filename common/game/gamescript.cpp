@@ -2640,9 +2640,20 @@ std::shared_ptr<zenkit::INpc> GameScript::npc_getlookattarget(std::shared_ptr<ze
   return npc && npc->lookAtTarget() ? npc->lookAtTarget()->handlePtr() : nullptr;
   }
 
-int GameScript::npc_getdisttonpc(std::shared_ptr<zenkit::INpc> aRef, std::shared_ptr<zenkit::INpc> bRef) {
-  auto a = findNpc(aRef);
-  auto b = findNpc(bRef);
+int GameScript::npc_getdisttonpc(std::shared_ptr<zenkit::DaedalusInstance> aRef, std::shared_ptr<zenkit::DaedalusInstance> bRef) {
+  auto a = findNpcById(aRef);
+  auto b = findNpcById(bRef);
+
+  if(a!=nullptr && b==nullptr) {
+    // B_FetchWeapon of Gothic 1 asks Npc_GetDistToNpc(self, item): the original engine takes any vob here, the item is the place of a weapon
+    // that lies about (the type of the argument was checked: an exception of the scripts, the character did not fetch the weapon)
+    if(auto itm = findItemById(bRef)) {
+      const float len = (itm->position()-a->position()).length();
+      if(len>float(std::numeric_limits<int32_t>::max()))
+        return std::numeric_limits<int32_t>::max();
+      return int(len);
+      }
+    }
 
   if(a==nullptr || b==nullptr)
     return std::numeric_limits<int32_t>::max();
