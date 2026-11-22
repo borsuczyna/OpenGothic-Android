@@ -192,11 +192,11 @@ void MainWindow::setupUi() {
   Gothic::inst().onShowDocument.bind(this,&MainWindow::showDocument);
   }
 
-/// A letter or a recipe that the player reads from the inventory. The inventory of CoM stays on the screen over the page, so
-/// with the mods of Ikarus it is closed, as the original engine does it for the documents.
+/// A letter or a recipe that the player reads from the inventory. The inventory is above the page in the order of the widgets, and it
+/// stayed on the screen over the letter (the panel of the item, the slots, the numbers) and took the keys. The original engine closes it
+/// for every document, in Gothic, Gothic II and in the mods, so it is closed here for every game.
 void MainWindow::showDocument(const DocumentMenu::Show& doc) {
-  auto* world = Gothic::inst().world();
-  if(world!=nullptr && world->script().hasDma() && inventory.isOpen()==InventoryMenu::State::Equip)
+  if(inventory.isOpen()==InventoryMenu::State::Equip)
     inventory.close();
   document.show(doc);
   }
