@@ -1718,6 +1718,10 @@ void MainWindow::render(){
     catch(const Tempest::SwapchainSuboptimal&) {
       throw;
       }
+    catch(const std::bad_alloc&) {
+      // bad_alloc is a std::exception too, but it is not an error of the scripts: the frame is dropped below, with the report of the memory
+      throw;
+      }
     catch(const std::exception& e) {
       // an exception of the scripts or of the game: it is shown with the details, the game goes on (the same error is shown once)
       Log::e("exception in the game: ",e.what());
@@ -1801,6 +1805,10 @@ void MainWindow::render(){
     if(t>=nextMemLog) {
       nextMemLog = t+5000;
       Log::d("[mem] ",t/1000," s: ",CrashLog::memoryInfo());
+      // what takes the address space, when it is big: the Mali crashes at about 420 GB of it, with 3 GB of the real memory in use
+      const std::string maps = CrashLog::mappingsSummary(6,32.0);
+      if(!maps.empty())
+        Log::d("[maps] ",maps);
       }
     }
 #endif
@@ -1809,7 +1817,15 @@ void MainWindow::render(){
   catch(const std::bad_alloc&) {
     // a failed allocation of this frame: the frame is dropped, and the game goes on if it was a one-off. When it is not (30 frames in a row),
     // the process ends as before, with the report of the crash.
-    Log::e("out of memory (std::bad_alloc) in the frame, phase: ",phase,", the frames lost in a row: ",oomFrames+1,", ",CrashLog::memoryInfo());
+    // Nothing in the handler may throw (the memory is short): an exception from here would end the process at once.
+    try {
+      Log::e("out of memory (std::bad_alloc) in the frame, phase: ",phase,", the frames lost in a row: ",oomFrames+1,", ",CrashLog::memoryInfo());
+      const std::string maps = CrashLog::mappingsSummary(10);
+      if(!maps.empty())
+        Log::e(maps);
+      }
+    catch(...) {
+      }
     if(++oomFrames>=30)
       throw;
     }
