@@ -44,6 +44,10 @@
         <activity android:name="org.opengothic.app.SpineDetailsActivity" android:exported="false"
             android:screenOrientation="userLandscape"
             android:configChanges="orientation|screenSize|keyboardHidden" />
+        <!-- The saves of the downloaded mods of Spine: export to a ZIP and import from one -->
+        <activity android:name="org.opengothic.app.SpineSavesActivity" android:exported="false"
+            android:screenOrientation="userLandscape"
+            android:configChanges="orientation|screenSize|keyboardHidden" />
         <service android:name="org.opengothic.app.SpineDownloadService" android:exported="false"
             android:foregroundServiceType="dataSync" />
         <!-- The login to Steam, the first screen when nobody is signed in -->
