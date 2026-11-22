@@ -2422,7 +2422,7 @@ void GameScript::wld_removenpc(int npcInstance) {
   }
 
 void GameScript::wld_insertitem(int itemInstance, std::string_view spawnpoint) {
-  if(spawnpoint.empty() || itemInstance<=0)
+  if(spawnpoint.empty() || itemInstance<=0 || !isItemInstance(itemInstance,"Wld_InsertItem"))
     return;
 
   world().addItem(size_t(itemInstance),spawnpoint);
@@ -3827,9 +3827,20 @@ void GameScript::equipitem(std::shared_ptr<zenkit::INpc> npcRef, int cls) {
     }
   }
 
+/// The scripts of the original game sometimes give an item by something that is not an item: B_GiveTradeInv_Addon_Samuel of Gothic II
+/// asks for the integer RI_ProtFire02 (5, the index of FloatToInt) instead of ItRi_Prot_Fire_02. The original engine creates nothing then and
+/// the script goes on. Here the initialization of the instance threw an exception, and the dialog of the trade ended with an error.
+bool GameScript::isItemInstance(int itemInstance, std::string_view caller) {
+  auto* sym = vm.find_symbol_by_index(uint32_t(itemInstance));
+  if(sym!=nullptr && sym->type()==zenkit::DaedalusDataType::INSTANCE)
+    return true;
+  Log::d(caller,": ",itemInstance," (",sym!=nullptr ? sym->name() : std::string("?"),") is not an item instance, nothing is created");
+  return false;
+  }
+
 void GameScript::createinvitem(std::shared_ptr<zenkit::INpc> npcRef, int itemInstance) {
-  if(itemInstance<=0)
-    return; // an empty slot of a script, the original engine does nothing
+  if(itemInstance<=0 || !isItemInstance(itemInstance,"CreateInvItem"))
+    return; // an empty slot of a script or not an item, the original engine does nothing
   auto self = findNpc(npcRef);
   if(self!=nullptr) {
     Item* itm = self->addItem(uint32_t(itemInstance),1);
@@ -3838,7 +3849,7 @@ void GameScript::createinvitem(std::shared_ptr<zenkit::INpc> npcRef, int itemIns
   }
 
 void GameScript::createinvitems(std::shared_ptr<zenkit::INpc> npcRef, int itemInstance, int amount) {
-  if(itemInstance<=0)
+  if(itemInstance<=0 || amount<=0 || !isItemInstance(itemInstance,"CreateInvItems"))
     return;
   auto self = findNpc(npcRef);
   if(self!=nullptr && amount>0) {

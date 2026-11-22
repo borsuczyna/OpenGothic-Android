@@ -328,6 +328,7 @@ class GameScript final {
     auto  findFocus(std::string_view name) -> zenkit::IFocus;
 
     void storeItem(Item* it);
+    bool isItemInstance(int itemInstance, std::string_view caller);
 
     bool aiOutput   (Npc &from, std::string_view name, bool overlay);
     bool aiOutputSvm(Npc &from, std::string_view name, bool overlay);
