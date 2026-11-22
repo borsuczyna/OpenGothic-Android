@@ -121,6 +121,15 @@ World::World(GameSession& game, std::string_view file, bool startup, std::functi
     wmatrix->buildIndex();
     loadProgress(100);
     }
+  catch(const std::bad_alloc&) {
+    Tempest::Log::e("unable to load landscape mesh");
+    throw;
+    }
+  catch(const std::exception& e) {
+    // the name of the world goes to the error screen: a file of a mod that does not parse says nothing without it
+    Tempest::Log::e("unable to load landscape mesh of \"",wname,"\": ",e.what());
+    throw std::runtime_error("the world '" + wname + "' could not be read: " + e.what());
+    }
   catch(...) {
     Tempest::Log::e("unable to load landscape mesh");
     throw;

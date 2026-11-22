@@ -749,21 +749,31 @@ void GameScript::loadDialogOU() {
   const auto version = Gothic::inst().version().game==1 ? zenkit::GameVersion::GOTHIC_1
                                                         : zenkit::GameVersion::GOTHIC_2;
 
-  for(auto& OU:names) {
-    if(Resources::hasFile(OU)) {
+  // A damaged or unusual file of a mod (the texts of the speech) must not stop the whole game: the failure is logged with the name of the file
+  // and the next candidate is tried, as it is done for the files of the disk below.
+  auto readFromFiles = [&](const std::string& name) {
+    try {
       std::unique_ptr<zenkit::Read> read;
-      auto zen = Resources::openReader(OU, read);
-      dialogs = std::move(*zen->read_object<zenkit::CutsceneLibrary>(version));
-      return;
+      auto zen = Resources::openReader(name, read);
+      auto lib = zen->read_object<zenkit::CutsceneLibrary>(version);
+      if(lib==nullptr)
+        throw std::runtime_error("no library of the output units in the file");
+      dialogs = std::move(*lib);
+      return true;
       }
+    catch(const std::exception& e) {
+      Log::e("unable to read the output units \"",name,"\": ",e.what());
+      }
+    return false;
+    };
+
+  for(auto& OU:names) {
+    if(Resources::hasFile(OU) && readFromFiles(OU))
+      return;
 
     const size_t segment = OU.find_last_of("\\/");
-    if(segment!=std::string::npos && Resources::hasFile(OU.substr(segment+1))) {
-      std::unique_ptr<zenkit::Read> read;
-      auto zen = Resources::openReader(OU.substr(segment+1), read);
-      dialogs = std::move(*zen->read_object<zenkit::CutsceneLibrary>(version));
+    if(segment!=std::string::npos && Resources::hasFile(OU.substr(segment+1)) && readFromFiles(OU.substr(segment+1)))
       return;
-      }
 
     char16_t str16[256] = {};
     for(size_t i=0; OU[i] && i<255; ++i)
