@@ -604,12 +604,19 @@ void Npc::leaveDeadPoint(std::string_view wpName) {
   updateTransform();
   }
 
+/// The scripts mark a body that must stay in the world with an old coin: B_KillNpc (the dead pirates of the Addon, Angus and Hank in the
+/// cave), the corpses of the paladins and of the dragon hunters. The coin is not a mission item, but it keeps the body.
+static bool hasBodyMarker(World& world, const Inventory& inv) {
+  const size_t coin = world.script().findSymbolIndex("ITMI_OLDCOIN");
+  return coin!=size_t(-1) && inv.itemCount(coin)>0;
+  }
+
 bool Npc::resetPositionToTA() {
   const bool g2       = owner.version().game==2;
   const bool isDragon = (g2 && guild()==GIL_DRAGON);
   const bool isDead   = this->isDead();
 
-  if(isDead && !invent.hasMissionItems() && !isDragon)
+  if(isDead && !invent.hasMissionItems() && !hasBodyMarker(owner,invent) && !isDragon)
     return false;
 
   invent.clearSlot(*this,"",currentInteract!=nullptr);
