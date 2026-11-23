@@ -2392,6 +2392,14 @@ void Npc::takeDamage(Npc &other, const Bullet* b) {
   lastHit = &other;
   if(!isPlayer())
     setOther(&other);
+  // The witnesses (B_AssessFightSound) help a friend who fights for a serious reason: the reason is the variable AIV_ATTACKREASON of the attacker.
+  // The scripts keep it for the characters that they control, the hero has none: a stale value (it was AR_GuildEnemy in a save) sent his friends
+  // (the dragon hunters) against the character that he hit.
+  if(other.isPlayer() && !isPlayer()) {
+    const int stale = owner.script().clearHeroAttackReason(other);
+    Log::d("[fight] the hero hits ",displayName(),": guild of the hero ",other.handle().guild,", guild of the victim ",handle().guild,
+           stale!=0 ? ", the stale AIV_ATTACKREASON of the hero is cleared: " : "", stale!=0 ? stale : 0);
+    }
   owner.sendPassivePerc(*this,other,*this,PERC_ASSESSFIGHTSOUND);
 
   if(!(isBlock || isJumpb) || b!=nullptr) {

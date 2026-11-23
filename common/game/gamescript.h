@@ -249,6 +249,11 @@ class GameScript final {
 
     const PerDist& percRanges() const { return perceptionRanges; }
 
+    /// The hero has no reason of an attack (AIV_ATTACKREASON): the scripts write it only for the characters that they control. A value that is left in
+    /// the hero makes the witnesses of his fights think that he fights for a serious reason, and they help him (B_AssessFightSound).
+    /// Returns the value that was cleared (0: there was none).
+    int clearHeroAttackReason(Npc& hero);
+
     bool isDead       (const Npc &pl);
     bool isUnconscious(const Npc &pl);
     bool isTalk       (const Npc &pl);
@@ -576,6 +581,7 @@ class GameScript final {
     GameSession&                                                owner;
     zenkit::DaedalusVm                                          vm;
     int32_t                                                     vmLang = -1;
+    int                                                         attackReasonVar = -2; // index of AIV_ATTACKREASON: -2 is not looked up yet, -1 the scripts have none
     std::mt19937                                                randGen;
     NpcProcessPolicy                                            aiProcessPolicy = NpcProcessPolicy::AiNormal;
 

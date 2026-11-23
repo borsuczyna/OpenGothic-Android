@@ -3452,6 +3452,13 @@ void GameScript::ai_startstate(std::shared_ptr<zenkit::INpc> selfRef, int func, 
     Npc*  oth = findNpc(vm.global_other());
     Npc*  vic = findNpc(vm.global_victim());
     auto& st  = aiState(size_t(func));
+    // Who starts a fight with whom and why (the reason is the script variable AIV_ATTACKREASON, the AR_* constants of B_Attack): this is what
+    // the log needs when a group of characters joins a fight, see B_AssessFightSound and the scripts that call B_Attack.
+    if(const auto* fsym = vm.find_symbol_by_index(uint32_t(func))) {
+      if(fsym->name()=="ZS_ATTACK" || fsym->name()=="ZS_Attack")
+        Log::d("[attack] ",self->displayName()," starts ",fsym->name()," against ",oth!=nullptr ? oth->displayName() : std::string_view("-"),
+               ", victim ",vic!=nullptr ? vic->displayName() : std::string_view("-"),", AIV_ATTACKREASON ",self->handle().aivar[9]);
+      }
     self->aiPush(AiQueue::aiStartState(st.funcIni,state,oth,vic,wp));
     }
   }
@@ -3830,6 +3837,21 @@ void GameScript::equipitem(std::shared_ptr<zenkit::INpc> npcRef, int cls) {
 /// The scripts of the original game sometimes give an item by something that is not an item: B_GiveTradeInv_Addon_Samuel of Gothic II
 /// asks for the integer RI_ProtFire02 (5, the index of FloatToInt) instead of ItRi_Prot_Fire_02. The original engine creates nothing then and
 /// the script goes on. Here the initialization of the instance threw an exception, and the dialog of the trade ended with an error.
+int GameScript::clearHeroAttackReason(Npc& hero) {
+  if(attackReasonVar==-2) {
+    const auto* sym = vm.find_symbol_by_name("AIV_ATTACKREASON");
+    attackReasonVar = (sym!=nullptr && sym->type()==zenkit::DaedalusDataType::INT) ? sym->get_int() : -1;
+    if(attackReasonVar<0 || attackReasonVar>=int(zenkit::INpc::aivar_count))
+      attackReasonVar = -1;
+    }
+  if(attackReasonVar<0)
+    return 0;
+  auto& v   = hero.handle().aivar[attackReasonVar];
+  auto  old = v;
+  v = 0;
+  return old;
+  }
+
 bool GameScript::isItemInstance(int itemInstance, std::string_view caller) {
   auto* sym = vm.find_symbol_by_index(uint32_t(itemInstance));
   if(sym!=nullptr && sym->type()==zenkit::DaedalusDataType::INSTANCE)
