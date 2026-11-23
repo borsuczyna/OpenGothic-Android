@@ -6,6 +6,7 @@
 #include "world/objects/item.h"
 #include "world/objects/npc.h"
 #include "world.h"
+#include "gothic.h"
 
 using namespace Tempest;
 
@@ -27,6 +28,14 @@ Bullet::Bullet(World& owner, const Item& itm, const Vec3& pos)
     } else {
     material = uint8_t(itm.handle().material);
     setView(owner.addView(itm.handle()));
+    // the magic and the fire ammunition (SPELLFX_ARROW, SPELLFX_FIREARROW, SPELLFX_BOLT) flies with its effect
+    if(!itm.handle().effect.empty()) {
+      if(const VisualFx* fx = Gothic::inst().loadVisualFx(itm.handle().effect)) {
+        Effect e(*fx,owner,pos,SpellFxKey::Cast);
+        e.setObjectMesh(&view);
+        setView(std::move(e));
+        }
+      }
     }
 
   setPosition(pos);
@@ -164,6 +173,11 @@ void Bullet::updateMatrix() {
     return;
   auto mat = obj->matrix();
   view.setObjMatrix(mat);
+  if(!isSpell()) {
+    // the effect of the ammunition sits on its mesh: the same matrix
+    vfx.setObjMatrix(mat);
+    return;
+    }
   // HACK: lighting bolt spell
   mat.rotateOY(90);
   vfx.setObjMatrix(mat);

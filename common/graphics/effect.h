@@ -40,6 +40,8 @@ class Effect final {
     void     setObjMatrix(const Tempest::Matrix4x4& mt);
     void     setKey      (World& owner, SpellFxKey key, int32_t keyLvl=0);
     void     setMesh     (const MeshObjects::Mesh* mesh);
+    /// The particles come from the whole surface of the mesh of an item (a weapon, an arrow): the shape MESH of its particle effect
+    void     setObjectMesh(const MeshObjects::Mesh* mesh);
     void     setBullet   (Bullet* b, World& owner);
     void     setSpellId  (int32_t splId, World& owner);
     bool     isActiveSpell(int32_t id) const { return root!=nullptr && spellAssigned && active && splId==id; }
@@ -80,6 +82,7 @@ class Effect final {
     const Pose*           pose     = nullptr;
 
     const MeshObjects::Mesh* meshEmitter = nullptr;
+    const PfxEmitterMesh*    objectMesh  = nullptr;
 
     Tempest::Matrix4x4    pos;
     Tempest::Vec3         selfRotation;

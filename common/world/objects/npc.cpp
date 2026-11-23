@@ -1108,13 +1108,13 @@ void Npc::updateArmor() {
     }
   }
 
-void Npc::setSword(MeshObjects::Mesh&& s) {
-  visual.setSword(std::move(s));
+void Npc::setSword(MeshObjects::Mesh&& s, Effect&& fx) {
+  visual.setSword(std::move(s),std::move(fx));
   updateWeaponSkeleton();
   }
 
-void Npc::setRangedWeapon(MeshObjects::Mesh&& b) {
-  visual.setRangedWeapon(std::move(b));
+void Npc::setRangedWeapon(MeshObjects::Mesh&& b, Effect&& fx) {
+  visual.setRangedWeapon(std::move(b),std::move(fx));
   updateWeaponSkeleton();
   }
 

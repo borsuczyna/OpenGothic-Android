@@ -47,8 +47,9 @@ class MdlVisual final {
 
     void                           setArmor      (Npc& npc, MeshObjects::Mesh&& armor);
     void                           setBody       (Npc& npc, MeshObjects::Mesh&& body, const int32_t version);
-    void                           setSword      (MeshObjects::Mesh&& sword);
-    void                           setRangedWeapon(MeshObjects::Mesh&& bow);
+    /// fx: the visual effect of the item (the glow of a magic bow, of a staff), it follows the weapon
+    void                           setSword      (MeshObjects::Mesh&& sword, Effect&& fx = Effect());
+    void                           setRangedWeapon(MeshObjects::Mesh&& bow, Effect&& fx = Effect());
     void                           setShield     (MeshObjects::Mesh&& shield);
     void                           setAmmoItem   (MeshObjects::Mesh&& ammo, std::string_view bone);
     void                           setSlotItem   (MeshObjects::Mesh&& itm,  std::string_view bone);
@@ -158,6 +159,8 @@ class MdlVisual final {
 
     void implSetBody(Npc* npc, World& world, MeshObjects::Mesh&& body, const int32_t version);
     void setSlotAttachment(MeshObjects::Mesh&& itm, std::string_view bone);
+    void setWeaponEffect(Effect& dst, Effect&& fx, const MeshAttach& weapon);
+    void syncWeaponEffect(const MeshAttach& weapon, Effect& fx);
 
     void bind(MeshAttach& slot, MeshObjects::Mesh&&   itm, std::string_view bone);
     void bind(PfxAttach&  slot, Effect&& itm, std::string_view bone);
@@ -182,6 +185,7 @@ class MdlVisual final {
 
     std::vector<PfxSlot>           effects;
     PfxSlot                        pfx;
+    Effect                         swordFx, bowFx; // the effects of the items in the hands and on the back
 
     TorchSlot                      torch;
 

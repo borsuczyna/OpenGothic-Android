@@ -73,6 +73,8 @@ void Effect::setupPfx(World& owner) {
   pfx = PfxEmitter(owner,pfxDecl);
   if(root->isMeshEmmiter())
     pfx.setMesh(meshEmitter,pose);
+  if(objectMesh!=nullptr)
+    pfx.setMeshEmitter(objectMesh,nullptr);
   pfx.setActive(active);
   pfx.setLooped(looped);
   }
@@ -247,6 +249,14 @@ void Effect::setMesh(const MeshObjects::Mesh* mesh) {
   meshEmitter = mesh;
   if(root!=nullptr && root->isMeshEmmiter())
     pfx.setMesh(meshEmitter,pose);
+  }
+
+void Effect::setObjectMesh(const MeshObjects::Mesh* mesh) {
+  if(next!=nullptr)
+    next->setObjectMesh(mesh);
+  objectMesh = (mesh!=nullptr) ? mesh->toMeshEmitter() : nullptr;
+  if(root!=nullptr)
+    pfx.setMeshEmitter(objectMesh,nullptr);
   }
 
 void Effect::setBullet(Bullet* b, World& owner) {
