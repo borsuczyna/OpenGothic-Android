@@ -8,7 +8,10 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 import java.util.zip.ZipEntry;
@@ -119,10 +122,91 @@ final class SaveExport {
         return null;
     }
 
+    /** The start of the game id of the saves of a mod of Spine: "mods:<id>,<id>", see {@link #modGameId}. */
+    static final String MODS = "mods:";
+
+    /**
+     * What the engine puts before "save_slot_" for a mod: the name of its ini file without the extension, only the letters and
+     * digits, in lower case ("Archolos_EN.ini" gives "archolosen"), as Gothic::saveGameId does.
+     */
+    static String modSaveId(String ini) {
+        String name = ini.substring(Math.max(ini.lastIndexOf('/'), ini.lastIndexOf('\\')) + 1);
+        int dot = name.lastIndexOf('.');
+        if (dot >= 0)
+            name = name.substring(0, dot);
+        StringBuilder id = new StringBuilder();
+        for (int i = 0; i < name.length(); i++) {
+            char c = name.charAt(i);
+            if (c >= 'A' && c <= 'Z')
+                c = (char) (c + ('a' - 'A'));
+            if ((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9'))
+                id.append(c);
+        }
+        return id.toString();
+    }
+
+    /**
+     * The game id of the saves of a downloaded mod. Each ini file of the mod (a version for each language) starts the game under its
+     * own name, so the saves of all of them belong to the mod. Empty when the ini gives no name: the saves would be those of Gothic II.
+     */
+    static String modGameId(SpineStore.Mod mod) {
+        Set<String> ids = new LinkedHashSet<>();
+        String own = modSaveId(mod.ini);
+        if (!own.isEmpty())
+            ids.add(own);
+        for (String ini : SpineStore.iniFiles(mod.files)) {
+            String id = modSaveId(ini);
+            if (!id.isEmpty())
+                ids.add(id);
+        }
+        if (ids.isEmpty())
+            return "";
+        StringBuilder ret = new StringBuilder(MODS);
+        boolean first = true;
+        for (String id : ids) {
+            if (!first)
+                ret.append(',');
+            ret.append(id);
+            first = false;
+        }
+        return ret.toString();
+    }
+
+    /** The names of all the save files of the application, in the folders that the export reads. */
+    static List<String> listSaveNames(Context context) {
+        List<String> ret = new ArrayList<>();
+        collectNames(context.getFilesDir(), 0, ret);
+        File external = context.getExternalFilesDir(null);
+        if (external != null)
+            collectNames(external, 0, ret);
+        return ret;
+    }
+
+    private static void collectNames(File dir, int depth, List<String> out) {
+        if (depth > MAX_DEPTH || dir == null || !dir.isDirectory())
+            return;
+        File[] children = dir.listFiles();
+        if (children == null)
+            return;
+        for (File file : children) {
+            if (file.isDirectory())
+                collectNames(file, depth + 1, out);
+            else if (file.isFile() && isSave(file.getName()))
+                out.add(file.getName());
+        }
+    }
+
     static boolean belongsToGame(String name, String gameId) {
         String prefix = prefixOf(name);
         if (prefix == null)
             return false;
+        if (gameId.startsWith(MODS)) {
+            for (String id : gameId.substring(MODS.length()).split(",")) {
+                if (!id.isEmpty() && prefix.equals(id + "_"))
+                    return true;
+            }
+            return false;
+        }
         if ("gothic1".equals(gameId)) return prefix.equals("g1_");
         if ("myrtana".equals(gameId)) return prefix.equals("thechroniclesofmyrtana_");
         if ("gothic2".equals(gameId) || "gothic2_notr".equals(gameId))

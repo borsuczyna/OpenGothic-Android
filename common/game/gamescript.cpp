@@ -749,21 +749,31 @@ void GameScript::loadDialogOU() {
   const auto version = Gothic::inst().version().game==1 ? zenkit::GameVersion::GOTHIC_1
                                                         : zenkit::GameVersion::GOTHIC_2;
 
-  for(auto& OU:names) {
-    if(Resources::hasFile(OU)) {
+  // A damaged or unusual file of a mod (the texts of the speech) must not stop the whole game: the failure is logged with the name of the file
+  // and the next candidate is tried, as it is done for the files of the disk below.
+  auto readFromFiles = [&](const std::string& name) {
+    try {
       std::unique_ptr<zenkit::Read> read;
-      auto zen = Resources::openReader(OU, read);
-      dialogs = std::move(*zen->read_object<zenkit::CutsceneLibrary>(version));
-      return;
+      auto zen = Resources::openReader(name, read);
+      auto lib = zen->read_object<zenkit::CutsceneLibrary>(version);
+      if(lib==nullptr)
+        throw std::runtime_error("no library of the output units in the file");
+      dialogs = std::move(*lib);
+      return true;
       }
+    catch(const std::exception& e) {
+      Log::e("unable to read the output units \"",name,"\": ",e.what());
+      }
+    return false;
+    };
+
+  for(auto& OU:names) {
+    if(Resources::hasFile(OU) && readFromFiles(OU))
+      return;
 
     const size_t segment = OU.find_last_of("\\/");
-    if(segment!=std::string::npos && Resources::hasFile(OU.substr(segment+1))) {
-      std::unique_ptr<zenkit::Read> read;
-      auto zen = Resources::openReader(OU.substr(segment+1), read);
-      dialogs = std::move(*zen->read_object<zenkit::CutsceneLibrary>(version));
+    if(segment!=std::string::npos && Resources::hasFile(OU.substr(segment+1)) && readFromFiles(OU.substr(segment+1)))
       return;
-      }
 
     char16_t str16[256] = {};
     for(size_t i=0; OU[i] && i<255; ++i)
@@ -1059,6 +1069,20 @@ void GameScript::saveSym(Serialize &fout, zenkit::DaedalusSymbol& i) {
   fout.write(uint32_t(zenkit::DaedalusDataType::VOID));
   }
 
+/// The collision of a static object (a pillar, a beam) is a hollow triangle mesh: the npc inside of it does not touch any triangle.
+/// The rays ignore the back faces, so the rays from the outside, towards the point, hit the surface only if the point is inside of a solid object.
+static bool isInsideSolid(const DynamicWorld& dyn, const Vec3& p) {
+  const float range = 120;
+  int         hit   = 0;
+  for(int i=0; i<8; ++i) {
+    const float a = float(i)*float(M_PI)/4.f;
+    const auto  s = p+Vec3(std::cos(a)*range, 100, std::sin(a)*range);
+    if(dyn.ray(s, p+Vec3(0,100,0)).hasCol)
+      ++hit;
+    }
+  return hit>=7;
+  }
+
 void GameScript::fixNpcPosition(Npc& npc, float angle0, float distBias) {
   auto& dyn  = *world().physic();
   auto  pos0 = npc.position();
@@ -1071,24 +1095,37 @@ void GameScript::fixNpcPosition(Npc& npc, float angle0, float distBias) {
       }
     }
 
-  for(int r = 0; r<=800; r+=20) {
-    for(int ang = 0; ang<360; ang+=30) {
-      float a = float((float(ang)+angle0)*M_PI/180.0);
-      float d = float(r)+distBias;
-      auto  p = pos0+Vec3(std::cos(a)*d, 0, std::sin(a)*d);
+  // The ground under the point: a way-point stays a bit over the floor, so the ray of a shifted point, started 100 over the way-point,
+  // can land on the top of a cupboard or of a table (Hilda in the farm house stood on the cupboard and could not go to her bed).
+  float ground0 = pos0.y;
+  if(auto g = dyn.ray(pos0+Vec3(0,100,0), pos0+Vec3(0,-1000,0)); g.hasCol)
+    ground0 = g.v.y;
 
-      auto ray = dyn.ray(p+Vec3(0,100,0), p+Vec3(0,-1000,0));
-      if(!ray.hasCol)
-        continue;
-      p.y = ray.v.y;
-      npc.setPosition(p);
-      if(!npc.hasCollision()) {
-        npc.updateTransform();
-        return;
-        }
-      if(d==0) {
-        // no need to loop multiple angles, with R of zero
-        break;
+  // the first pass stays on the level of the point, the second one takes any ground
+  for(int pass = 0; pass<2; ++pass) {
+    for(int r = 0; r<=800; r+=20) {
+      for(int ang = 0; ang<360; ang+=30) {
+        float a = float((float(ang)+angle0)*M_PI/180.0);
+        float d = float(r)+distBias;
+        auto  p = pos0+Vec3(std::cos(a)*d, 0, std::sin(a)*d);
+
+        auto ray = dyn.ray(p+Vec3(0,100,0), p+Vec3(0,-1000,0));
+        if(!ray.hasCol)
+          continue;
+        p.y = ray.v.y;
+        if(pass==0 && std::abs(p.y-ground0)>60.f)
+          continue;
+        if(isInsideSolid(dyn,p))
+          continue; // two npc at the same way-point: the shifted one ended up inside of a pillar (Oric, OC hall)
+        npc.setPosition(p);
+        if(!npc.hasCollision()) {
+          npc.updateTransform();
+          return;
+          }
+        if(d==0) {
+          // no need to loop multiple angles, with R of zero
+          break;
+          }
         }
       }
     }
@@ -2295,12 +2332,7 @@ void GameScript::wld_senduntrigger(std::string_view triggerTarget) {
   }
 
 bool GameScript::wld_israining() {
-  static bool first=true;
-  if(first){
-    Log::e("not implemented call [wld_israining]");
-    first=false;
-  }
-  return false;
+  return world().isRaining();
   }
 
 void GameScript::mdl_setvisual(std::shared_ptr<zenkit::INpc> npcRef, std::string_view visual) {
@@ -2412,7 +2444,7 @@ void GameScript::wld_removenpc(int npcInstance) {
   }
 
 void GameScript::wld_insertitem(int itemInstance, std::string_view spawnpoint) {
-  if(spawnpoint.empty() || itemInstance<=0)
+  if(spawnpoint.empty() || itemInstance<=0 || !isItemInstance(itemInstance,"Wld_InsertItem"))
     return;
 
   world().addItem(size_t(itemInstance),spawnpoint);
@@ -3442,6 +3474,13 @@ void GameScript::ai_startstate(std::shared_ptr<zenkit::INpc> selfRef, int func, 
     Npc*  oth = findNpc(vm.global_other());
     Npc*  vic = findNpc(vm.global_victim());
     auto& st  = aiState(size_t(func));
+    // Who starts a fight with whom and why (the reason is the script variable AIV_ATTACKREASON, the AR_* constants of B_Attack): this is what
+    // the log needs when a group of characters joins a fight, see B_AssessFightSound and the scripts that call B_Attack.
+    if(const auto* fsym = vm.find_symbol_by_index(uint32_t(func))) {
+      if(fsym->name()=="ZS_ATTACK" || fsym->name()=="ZS_Attack")
+        Log::d("[attack] ",self->displayName()," starts ",fsym->name()," against ",oth!=nullptr ? oth->displayName() : std::string_view("-"),
+               ", victim ",vic!=nullptr ? vic->displayName() : std::string_view("-"),", AIV_ATTACKREASON ",self->handle().aivar[9]);
+      }
     self->aiPush(AiQueue::aiStartState(st.funcIni,state,oth,vic,wp));
     }
   }
@@ -3817,9 +3856,35 @@ void GameScript::equipitem(std::shared_ptr<zenkit::INpc> npcRef, int cls) {
     }
   }
 
+/// The scripts of the original game sometimes give an item by something that is not an item: B_GiveTradeInv_Addon_Samuel of Gothic II
+/// asks for the integer RI_ProtFire02 (5, the index of FloatToInt) instead of ItRi_Prot_Fire_02. The original engine creates nothing then and
+/// the script goes on. Here the initialization of the instance threw an exception, and the dialog of the trade ended with an error.
+int GameScript::clearHeroAttackReason(Npc& hero) {
+  if(attackReasonVar==-2) {
+    const auto* sym = vm.find_symbol_by_name("AIV_ATTACKREASON");
+    attackReasonVar = (sym!=nullptr && sym->type()==zenkit::DaedalusDataType::INT) ? sym->get_int() : -1;
+    if(attackReasonVar<0 || attackReasonVar>=int(zenkit::INpc::aivar_count))
+      attackReasonVar = -1;
+    }
+  if(attackReasonVar<0)
+    return 0;
+  auto& v   = hero.handle().aivar[attackReasonVar];
+  auto  old = v;
+  v = 0;
+  return old;
+  }
+
+bool GameScript::isItemInstance(int itemInstance, std::string_view caller) {
+  auto* sym = vm.find_symbol_by_index(uint32_t(itemInstance));
+  if(sym!=nullptr && sym->type()==zenkit::DaedalusDataType::INSTANCE)
+    return true;
+  Log::d(caller,": ",itemInstance," (",sym!=nullptr ? sym->name() : std::string("?"),") is not an item instance, nothing is created");
+  return false;
+  }
+
 void GameScript::createinvitem(std::shared_ptr<zenkit::INpc> npcRef, int itemInstance) {
-  if(itemInstance<=0)
-    return; // an empty slot of a script, the original engine does nothing
+  if(itemInstance<=0 || !isItemInstance(itemInstance,"CreateInvItem"))
+    return; // an empty slot of a script or not an item, the original engine does nothing
   auto self = findNpc(npcRef);
   if(self!=nullptr) {
     Item* itm = self->addItem(uint32_t(itemInstance),1);
@@ -3828,7 +3893,7 @@ void GameScript::createinvitem(std::shared_ptr<zenkit::INpc> npcRef, int itemIns
   }
 
 void GameScript::createinvitems(std::shared_ptr<zenkit::INpc> npcRef, int itemInstance, int amount) {
-  if(itemInstance<=0)
+  if(itemInstance<=0 || amount<=0 || !isItemInstance(itemInstance,"CreateInvItems"))
     return;
   auto self = findNpc(npcRef);
   if(self!=nullptr && amount>0) {

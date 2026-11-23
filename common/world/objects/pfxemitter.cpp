@@ -60,14 +60,17 @@ PfxEmitter::~PfxEmitter() {
   }
 
 PfxEmitter::PfxEmitter(PfxEmitter && b)
-  :bucket(b.bucket), id(b.id), zone(std::move(b.zone)) {
+  :bucket(b.bucket), id(b.id), zone(std::move(b.zone)), shpMesh(std::move(b.shpMesh)) {
   b.bucket = nullptr;
   }
 
+// The mesh of the shape is a part of the emitter (the ice lance is a mesh of the particle effect): it moves with it, otherwise the temporary
+// emitter that is assigned to the effect takes the mesh away and the lance is not drawn at all.
 PfxEmitter& PfxEmitter::operator=(PfxEmitter &&b) {
-  std::swap(bucket,b.bucket);
-  std::swap(id,    b.id);
-  std::swap(zone,  b.zone);
+  std::swap(bucket, b.bucket);
+  std::swap(id,     b.id);
+  std::swap(zone,   b.zone);
+  std::swap(shpMesh,b.shpMesh);
   return *this;
   }
 
@@ -146,14 +149,18 @@ void PfxEmitter::setLooped(bool loop) {
   }
 
 void PfxEmitter::setMesh(const MeshObjects::Mesh* mesh, const Pose* pose) {
-  const PfxEmitterMesh* m = (mesh!=nullptr) ? mesh->toMeshEmitter() : nullptr;
+  setMeshEmitter((mesh!=nullptr) ? mesh->toMeshEmitter() : nullptr,pose);
+  }
 
+void PfxEmitter::setMeshEmitter(const PfxEmitterMesh* m, const Pose* pose) {
+  if(bucket==nullptr)
+    return;
   std::lock_guard<std::recursive_mutex> guard(bucket->parent.sync);
   auto& v = bucket->get(id);
   v.mesh = m;
   v.pose = pose;
   if(v.next!=nullptr)
-    v.next->setMesh(mesh,pose);
+    v.next->setMeshEmitter(m,pose);
   }
 
 void PfxEmitter::setPhysicsEnable(World& p, std::function<void (Npc&)> cb) {

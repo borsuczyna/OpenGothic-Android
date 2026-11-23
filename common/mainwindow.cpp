@@ -192,11 +192,11 @@ void MainWindow::setupUi() {
   Gothic::inst().onShowDocument.bind(this,&MainWindow::showDocument);
   }
 
-/// A letter or a recipe that the player reads from the inventory. The inventory of CoM stays on the screen over the page, so
-/// with the mods of Ikarus it is closed, as the original engine does it for the documents.
+/// A letter or a recipe that the player reads from the inventory. The inventory is above the page in the order of the widgets, and it
+/// stayed on the screen over the letter (the panel of the item, the slots, the numbers) and took the keys. The original engine closes it
+/// for every document, in Gothic, Gothic II and in the mods, so it is closed here for every game.
 void MainWindow::showDocument(const DocumentMenu::Show& doc) {
-  auto* world = Gothic::inst().world();
-  if(world!=nullptr && world->script().hasDma() && inventory.isOpen()==InventoryMenu::State::Equip)
+  if(inventory.isOpen()==InventoryMenu::State::Equip)
     inventory.close();
   document.show(doc);
   }
@@ -929,6 +929,9 @@ void MainWindow::drawTouchBars(Painter& p, Npc& pl) {
     return;
     }
   if(mode!=Mobile::Mode::Game)
+    return;
+  // the bars go with the controls: no stick and no hotbar in a cutscene, on a pause, when the player is down, in the settings
+  if(androidControls.settingsVisible() || !(androidControls.movementAvailable() || androidControls.editingHud()))
     return;
 
   // above the hotbar of the controls, same units as the model
@@ -1718,6 +1721,10 @@ void MainWindow::render(){
     catch(const Tempest::SwapchainSuboptimal&) {
       throw;
       }
+    catch(const std::bad_alloc&) {
+      // bad_alloc is a std::exception too, but it is not an error of the scripts: the frame is dropped below, with the report of the memory
+      throw;
+      }
     catch(const std::exception& e) {
       // an exception of the scripts or of the game: it is shown with the details, the game goes on (the same error is shown once)
       Log::e("exception in the game: ",e.what());
@@ -1801,6 +1808,10 @@ void MainWindow::render(){
     if(t>=nextMemLog) {
       nextMemLog = t+5000;
       Log::d("[mem] ",t/1000," s: ",CrashLog::memoryInfo());
+      // what takes the address space, when it is big: the Mali crashes at about 420 GB of it, with 3 GB of the real memory in use
+      const std::string maps = CrashLog::mappingsSummary(6,32.0);
+      if(!maps.empty())
+        Log::d("[maps] ",maps);
       }
     }
 #endif
@@ -1809,7 +1820,15 @@ void MainWindow::render(){
   catch(const std::bad_alloc&) {
     // a failed allocation of this frame: the frame is dropped, and the game goes on if it was a one-off. When it is not (30 frames in a row),
     // the process ends as before, with the report of the crash.
-    Log::e("out of memory (std::bad_alloc) in the frame, phase: ",phase,", the frames lost in a row: ",oomFrames+1,", ",CrashLog::memoryInfo());
+    // Nothing in the handler may throw (the memory is short): an exception from here would end the process at once.
+    try {
+      Log::e("out of memory (std::bad_alloc) in the frame, phase: ",phase,", the frames lost in a row: ",oomFrames+1,", ",CrashLog::memoryInfo());
+      const std::string maps = CrashLog::mappingsSummary(10);
+      if(!maps.empty())
+        Log::e(maps);
+      }
+    catch(...) {
+      }
     if(++oomFrames>=30)
       throw;
     }

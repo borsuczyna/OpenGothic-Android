@@ -264,10 +264,18 @@ void PfxBucket::init(PfxBucket::Block& block, ImplEmitter& emitter, size_t parti
       auto pose = (emitter.mesh!=nullptr) ? emitter.pose : nullptr;
       if(mesh!=nullptr) {
         auto pos = mesh->randCoord(randf(),pose);
-        pos -= emitter.pos;
-        p.pos = emitter.direction[0]*pos.x +
-                emitter.direction[1]*pos.y +
-                emitter.direction[2]*pos.z;
+        // the mesh of an item (a weapon, an arrow) is in the space of the object: it is turned by the matrix of the emitter, which is the
+        // matrix of the item; the position of the emitter is added below. The meshes of the models are in the space of the world.
+        if(emitter.mesh!=nullptr && mesh->isStatic())
+          p.pos = emitter.direction[0]*pos.x +
+                  emitter.direction[1]*pos.y +
+                  emitter.direction[2]*pos.z;
+        else {
+          pos -= emitter.pos;
+          p.pos = emitter.direction[0]*pos.x +
+                  emitter.direction[1]*pos.y +
+                  emitter.direction[2]*pos.z;
+          }
         }
       break;
       }

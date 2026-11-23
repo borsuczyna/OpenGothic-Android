@@ -51,7 +51,7 @@ const char* const IconFiles[AndroidInput::IconCount] = {
 
 const char* const SettingNames[Mobile::SettingCount] = {
   "buttons", "resolution", "shadows", "effects", "fps", "deadzone", "sensitivity", "vibration", "gui",
-  "speed", "hudnumbers", "hudxp", "strafe", "autolock", "reflections"
+  "speed", "hudnumbers", "hudxp", "strafe", "autolock", "reflections", "padstyle", "rain"
   };
 
 // Gives access to the dispatch functions of SystemApi
@@ -186,7 +186,10 @@ int nextValue(int setting, int value) {
     case Mobile::SettingStrafe:
     case Mobile::SettingAutoLock:
     case Mobile::SettingReflections:
+    case Mobile::SettingPadStyle:
       return value ? 0 : 1;
+    case Mobile::SettingRain:
+      return value>=3 ? 0 : value+1;
     }
   return value;
   }
@@ -203,8 +206,12 @@ std::string settingText(int setting, const std::string& label) {
     return value ? "XP counter: ON" : "XP counter: OFF";
   if(setting==Mobile::SettingStrafe)
     return value ? "Step buttons: ON" : "Step buttons: OFF";
+  if(setting==Mobile::SettingPadStyle)
+    return value ? "Gamepad movement: Touch style" : "Gamepad movement: Diagonal";
   if(setting==Mobile::SettingReflections)
     return value ? "Water reflections: ON" : "Water reflections: sky only";
+  if(setting==Mobile::SettingRain)
+    return value<=0 ? "Rain: OFF" : value==1 ? "Rain: light" : value==2 ? "Rain: normal" : "Rain: heavy";
   if(setting==Mobile::SettingAutoLock)
     return value ? "Auto lock on weapon draw: ON" : "Auto lock on weapon draw: OFF";
   if(setting==Mobile::SettingSpeed)
@@ -306,6 +313,10 @@ AndroidInput::Preferences AndroidInput::preferences() {
     ret.autoLock = Gothic::settingsGetI(Section,SettingNames[Mobile::SettingAutoLock])!=0 ? 1 : 0;
   if(Gothic::settingsGetI(Section,"version")>=8)
     ret.reflections = Gothic::settingsGetI(Section,SettingNames[Mobile::SettingReflections])!=0 ? 1 : 0;
+  if(Gothic::settingsGetI(Section,"version")>=9)
+    ret.padStyle = Gothic::settingsGetI(Section,SettingNames[Mobile::SettingPadStyle])!=0 ? 1 : 0;
+  if(Gothic::settingsGetI(Section,"version")>=10)
+    ret.rain = std::clamp(Gothic::settingsGetI(Section,SettingNames[Mobile::SettingRain]),0,3);
   return ret;
   }
 
@@ -327,10 +338,12 @@ void AndroidInput::Controller::bind() {
     Gothic::settingsSetI(Section,SettingNames[Mobile::SettingStrafe],     def.strafe);
     Gothic::settingsSetI(Section,SettingNames[Mobile::SettingAutoLock],   def.autoLock);
     Gothic::settingsSetI(Section,SettingNames[Mobile::SettingReflections],def.reflections);
-    Gothic::settingsSetI(Section,"version",8);
+    Gothic::settingsSetI(Section,SettingNames[Mobile::SettingPadStyle],   def.padStyle);
+    Gothic::settingsSetI(Section,SettingNames[Mobile::SettingRain],       def.rain);
+    Gothic::settingsSetI(Section,"version",10);
     Gothic::flushSettings();
     } else
-  if(Gothic::settingsGetI(Section,"version")<8) {
+  if(Gothic::settingsGetI(Section,"version")<10) {
     // settings saved before the vibration, the scale of the interface, the fast forward, the side steps and the auto lock were added
     const Preferences def;
     const int version = Gothic::settingsGetI(Section,"version");
@@ -353,7 +366,13 @@ void AndroidInput::Controller::bind() {
     // the reflections of the water were always on (the screen space): they stay until the player switches them off
     if(version<8)
       Gothic::settingsSetI(Section,SettingNames[Mobile::SettingReflections],def.reflections);
-    Gothic::settingsSetI(Section,"version",8);
+    // the left stick keeps walking where it points
+    if(version<9)
+      Gothic::settingsSetI(Section,SettingNames[Mobile::SettingPadStyle],def.padStyle);
+    // the rain of the original game is on (the normal one)
+    if(version<10)
+      Gothic::settingsSetI(Section,SettingNames[Mobile::SettingRain],def.rain);
+    Gothic::settingsSetI(Section,"version",10);
     Gothic::flushSettings();
     }
   loadHudPlaces();
@@ -541,6 +560,7 @@ void AndroidInput::Controller::applyPreferences() {
   const auto pref = preferences();
   controls.preferences(float(pref.buttons)/100.f,float(pref.deadzone)/100.f,float(pref.sensitivity)/100.f);
   padSensitivity = float(pref.sensitivity)/100.f;
+  pad.style(pref.padStyle!=0 ? Mobile::Gamepad::Style::Touch : Mobile::Gamepad::Style::Diagonal);
   // the game is vanilla: the fast forward is on the HUD and in the settings only when a mod has asked for it
   controls.features(Scripting::ModHost::inst().fastForwardWanted(),pref.strafe!=0);
   }

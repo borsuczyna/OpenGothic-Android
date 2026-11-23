@@ -65,6 +65,8 @@ void Effect::setupPfx(World& owner) {
   const ParticleFx* pfxDecl = Gothic::inst().loadParticleFx(root->visName_S);
   if(key!=nullptr && key->visName!=nullptr)
     pfxDecl = key->visName;
+  else if(flightFx!=nullptr)
+    pfxDecl = flightFx;
 
   pfxDecl = Gothic::inst().loadParticleFx(pfxDecl,key);
   if(pfxDecl==nullptr)
@@ -73,6 +75,8 @@ void Effect::setupPfx(World& owner) {
   pfx = PfxEmitter(owner,pfxDecl);
   if(root->isMeshEmmiter())
     pfx.setMesh(meshEmitter,pose);
+  if(objectMesh!=nullptr)
+    pfx.setMeshEmitter(objectMesh,nullptr);
   pfx.setActive(active);
   pfx.setLooped(looped);
   }
@@ -103,6 +107,15 @@ void Effect::tick(uint64_t dt) {
 
   if(root==nullptr)
     return;
+
+  if(flight && !flightEnded && key!=nullptr) {
+    flightPassed += key->emTrjEaseVel*float(dt)/1000.f;
+    if(flightPassed>=(flightGoal()-flightFrom).length()) {
+      flightEnded = true;
+      setLooped(false);
+      }
+    syncAttachesSingle(pos);
+    }
 
   Vec3 vel = root->emSelfRotVel;
   if(key!=nullptr)
@@ -135,7 +148,50 @@ void Effect::setTarget(const Npc* tg) {
     next->setTarget(tg);
   target = tg;
   pfx.setTarget(tg);
+  beginFlight();
   syncAttachesSingle(pos);
+  }
+
+void Effect::beginFlight() {
+  if(flight || root==nullptr || key==nullptr || target==nullptr || origin==nullptr || bullet!=nullptr || target==origin)
+    return;
+  // only the plain TARGET trajectory with a speed (not LINE, SPLINE, RANDOM)
+  if(!key->emTrjMode.has_value() || key->emTrjMode.value()!=VisualFx::Trajectory::Target || key->emTrjEaseVel<=0)
+    return;
+
+  flight       = true;
+  flightEnded  = false;
+  flightPassed = 0;
+  flightFrom   = origin->mapBone(nodeSlot);
+  flightTimeMs = uint64_t(((flightGoal()-flightFrom).length()/key->emTrjEaseVel)*1000.f);
+
+  // the cast key changes only the trajectory: the particles of the last invest key keep flying
+  const VisualFx::Key* invest = root->key(SpellFxKey::Invest,1);
+  if(key->visName==nullptr && invest!=nullptr && invest->visName!=nullptr)
+    flightFx = invest->visName;
+
+  setLooped(true);
+  if(flightFx!=nullptr) {
+    World& owner = origin->world();
+    setupPfx(owner);
+    pfx.setTarget(target);
+    setupCollision(owner);
+    }
+  }
+
+Vec3 Effect::flightGoal() const {
+  if(!root->emTrjTargetNode.empty())
+    return target->mapBone(root->emTrjTargetNode);
+  return target->collosionCenter();
+  }
+
+Vec3 Effect::flightPosition() const {
+  const Vec3  goal = flightGoal();
+  const Vec3  d    = goal-flightFrom;
+  const float len  = d.length();
+  if(len<=1.f || flightPassed>=len)
+    return goal;
+  return flightFrom+d*(flightPassed/len);
   }
 
 void Effect::setOrigin(Npc* npc) {
@@ -180,7 +236,7 @@ void Effect::syncAttachesSingle(const Matrix4x4& inPos) {
   if((emTrjMode & VisualFx::Trajectory::Target)==VisualFx::Trajectory::Target && target!=nullptr) {
     // NOTE: needed for shrink-spell, light-spell
     p.identity();
-    p.translate(target->mapBone(nodeSlot));
+    p.translate(flight ? flightPosition() : target->mapBone(nodeSlot));
     }
   else if(true || emTrjMode != VisualFx::Trajectory::TrajectoryNone) {
     if(pose!=nullptr && boneId<pose->boneCount())
@@ -249,6 +305,14 @@ void Effect::setMesh(const MeshObjects::Mesh* mesh) {
     pfx.setMesh(meshEmitter,pose);
   }
 
+void Effect::setObjectMesh(const MeshObjects::Mesh* mesh) {
+  if(next!=nullptr)
+    next->setObjectMesh(mesh);
+  objectMesh = (mesh!=nullptr) ? mesh->toMeshEmitter() : nullptr;
+  if(root!=nullptr)
+    pfx.setMeshEmitter(objectMesh,nullptr);
+  }
+
 void Effect::setBullet(Bullet* b, World& owner) {
   if(next!=nullptr)
     next->setBullet(b,owner);
@@ -272,7 +336,7 @@ uint64_t Effect::effectPrefferedTime() const {
   // ret = std::max(ret, sfx  .effectPrefferedTime());
   ret = std::max(ret, gfx  .effectPrefferedTime());
   // ret = std::max(ret, light.effectPrefferedTime());
-  return ret;
+  return ret+flightTimeMs;
   }
 
 bool Effect::isAlive() const {

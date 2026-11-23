@@ -630,6 +630,37 @@ PfxEmitterMesh* Resources::implLoadEmiterMesh(std::string_view name) {
     return ret.get();
     }
 
+  // The meshes of the items (weapons, ammunition) come here under the name that ProtoMesh keeps: the compiled one (3DS -> MRM, MMS -> MMB)
+  if(FileExt::hasExt(cname,"MRM")) {
+    const auto* entry = Resources::vdfsIndex().find(cname);
+    if(entry == nullptr) return nullptr;
+    zenkit::MultiResolutionMesh zmsh;
+    auto reader = entry->open_read();
+    zmsh.load(reader.get());
+
+    if(zmsh.sub_meshes.empty())
+      return nullptr;
+
+    PackedMesh packed(zmsh,PackedMesh::PK_Visual);
+    ret = std::unique_ptr<PfxEmitterMesh>(new PfxEmitterMesh(packed));
+    return ret.get();
+    }
+
+  if(FileExt::hasExt(cname,"MMB")) {
+    const auto* entry = Resources::vdfsIndex().find(cname);
+    if(entry == nullptr) return nullptr;
+    zenkit::MorphMesh zmm;
+    auto reader = entry->open_read();
+    zmm.load(reader.get());
+
+    if(zmm.mesh.sub_meshes.empty())
+      return nullptr;
+
+    PackedMesh packed(zmm.mesh,PackedMesh::PK_VisualMorph);
+    ret = std::unique_ptr<PfxEmitterMesh>(new PfxEmitterMesh(packed));
+    return ret.get();
+    }
+
   if(FileExt::hasExt(name,"MDM")) {
     if(!hasFile(name))
       return nullptr;

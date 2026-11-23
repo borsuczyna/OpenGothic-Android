@@ -15,6 +15,8 @@ class PfxEmitterMesh {
     PfxEmitterMesh(const zenkit::ModelMesh& src);
 
     Tempest::Vec3 randCoord(float rnd, const Pose* pose) const;
+    /// The vertices are in the space of the object (a weapon, an arrow), not skinned to the bones of a model
+    bool          isStatic() const { return !vertices.empty(); }
 
   private:
     struct Triangle {

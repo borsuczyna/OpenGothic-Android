@@ -34,6 +34,7 @@ class PfxEmitter {
     bool     isActive() const;
     void     setLooped(bool loop);
     void     setMesh(const MeshObjects::Mesh* mesh, const Pose* pose);
+    void     setMeshEmitter(const PfxEmitterMesh* mesh, const Pose* pose);
 
     void     setTarget(const Npc* tg);
 

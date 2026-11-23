@@ -120,8 +120,8 @@ void Sky::updateLight(const gtime gameTime) {
     //sun.setDir(0, 1, 0); //debug
   }
 
-  static float sunMul = 1;
-  static float ambMul = 1;
+  const float sunMul = 1.f - 0.6f*overcast;
+  const float ambMul = 1.f - 0.2f*overcast;
   // static auto  groundAlbedo = Vec3(0.34f, 0.42f, 0.26f); // Foliage(MacBeth)
   // static auto  groundAlbedo = Vec3(0.39f, 0.40f, 0.33f);
   static auto  groundAlbedo = Vec3(0.3f); // aligned to sky-shading

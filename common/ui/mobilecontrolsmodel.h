@@ -80,6 +80,8 @@ enum Setting : int {
   SettingStrafe,
   SettingAutoLock,
   SettingReflections,
+  SettingPadStyle,
+  SettingRain,
   SettingCount
   };
 

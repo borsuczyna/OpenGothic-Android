@@ -34,6 +34,9 @@ class Sky final {
     Tempest::Vec2             cloudsOffset(int layer, uint64_t tickCount) const;
     float                     isNight() const;
 
+    /// The clouds of the rain (0..1): the sun and the sky light are weaker
+    void                      setOvercast(float v) { overcast = v; }
+
   private:
     const Tempest::Texture2d*     skyTexture(std::string_view name, bool day, size_t id);
     const Tempest::Texture2d*     implSkyTexture(std::string_view name, bool day, size_t id);
@@ -46,6 +49,7 @@ class Sky final {
     const Tempest::Texture2d*     sunImg   = &Resources::fallbackBlack();
     const Tempest::Texture2d*     moonImg  = &Resources::fallbackBlack();
 
+    float                         overcast       = 0;
     float                         GSunIntensity  = 0;
     float                         GMoonIntensity = 0;
   };

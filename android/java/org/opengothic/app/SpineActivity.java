@@ -319,6 +319,12 @@ public final class SpineActivity extends Activity {
         status = label("", 13, GREY);
         status.setPadding(dp(14), 0, 0, 0);
         top.addView(status, new LinearLayout.LayoutParams(0, -2, 1.f));
+        // the saves of the downloaded mods: export to a ZIP and import from one
+        Button saves = button(Texts.t("Saves", "Zapisy"));
+        saves.setOnClickListener(v -> startActivity(new Intent(this, SpineSavesActivity.class)));
+        LinearLayout.LayoutParams savesParams = new LinearLayout.LayoutParams(dp(110), dp(40));
+        savesParams.setMargins(0, 0, dp(8), 0);
+        top.addView(saves, savesParams);
         Button back = button(Texts.t("Back", "Wróć"));
         back.setOnClickListener(v -> finish());
         top.addView(back, new LinearLayout.LayoutParams(dp(90), dp(40)));

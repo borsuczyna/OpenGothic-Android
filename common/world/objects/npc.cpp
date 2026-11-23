@@ -604,12 +604,19 @@ void Npc::leaveDeadPoint(std::string_view wpName) {
   updateTransform();
   }
 
+/// The scripts mark a body that must stay in the world with an old coin: B_KillNpc (the dead pirates of the Addon, Angus and Hank in the
+/// cave), the corpses of the paladins and of the dragon hunters. The coin is not a mission item, but it keeps the body.
+static bool hasBodyMarker(World& world, const Inventory& inv) {
+  const size_t coin = world.script().findSymbolIndex("ITMI_OLDCOIN");
+  return coin!=size_t(-1) && inv.itemCount(coin)>0;
+  }
+
 bool Npc::resetPositionToTA() {
   const bool g2       = owner.version().game==2;
   const bool isDragon = (g2 && guild()==GIL_DRAGON);
   const bool isDead   = this->isDead();
 
-  if(isDead && !invent.hasMissionItems() && !isDragon)
+  if(isDead && !invent.hasMissionItems() && !hasBodyMarker(owner,invent) && !isDragon)
     return false;
 
   invent.clearSlot(*this,"",currentInteract!=nullptr);
@@ -1108,13 +1115,13 @@ void Npc::updateArmor() {
     }
   }
 
-void Npc::setSword(MeshObjects::Mesh&& s) {
-  visual.setSword(std::move(s));
+void Npc::setSword(MeshObjects::Mesh&& s, Effect&& fx) {
+  visual.setSword(std::move(s),std::move(fx));
   updateWeaponSkeleton();
   }
 
-void Npc::setRangedWeapon(MeshObjects::Mesh&& b) {
-  visual.setRangedWeapon(std::move(b));
+void Npc::setRangedWeapon(MeshObjects::Mesh&& b, Effect&& fx) {
+  visual.setRangedWeapon(std::move(b),std::move(fx));
   updateWeaponSkeleton();
   }
 
@@ -2392,6 +2399,14 @@ void Npc::takeDamage(Npc &other, const Bullet* b) {
   lastHit = &other;
   if(!isPlayer())
     setOther(&other);
+  // The witnesses (B_AssessFightSound) help a friend who fights for a serious reason: the reason is the variable AIV_ATTACKREASON of the attacker.
+  // The scripts keep it for the characters that they control, the hero has none: a stale value (it was AR_GuildEnemy in a save) sent his friends
+  // (the dragon hunters) against the character that he hit.
+  if(other.isPlayer() && !isPlayer()) {
+    const int stale = owner.script().clearHeroAttackReason(other);
+    Log::d("[fight] the hero hits ",displayName(),": guild of the hero ",other.handle().guild,", guild of the victim ",handle().guild,
+           stale!=0 ? ", the stale AIV_ATTACKREASON of the hero is cleared: " : "", stale!=0 ? stale : 0);
+    }
   owner.sendPassivePerc(*this,other,*this,PERC_ASSESSFIGHTSOUND);
 
   if(!(isBlock || isJumpb) || b!=nullptr) {

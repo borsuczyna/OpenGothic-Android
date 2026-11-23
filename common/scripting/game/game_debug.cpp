@@ -888,6 +888,20 @@ JSValue god(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv) {
   return JS_NewBool(ctx,Gothic::inst().isGodMode());
   }
 
+/// debug.rain(mode) -> is it raining. The mode: 1 the rain is on, 0 the rain is off, -1 the weather of the day (the setting of the rain
+/// must not be off). Without the mode it only tells the state.
+JSValue rain(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv) {
+  auto* w = world();
+  if(w==nullptr)
+    return JS_FALSE;
+  if(argc>0) {
+    int32_t mode = -1;
+    JS_ToInt32(ctx,&mode,argv[0]);
+    w->forceRain(mode);
+    }
+  return JS_NewBool(ctx,w->isRaining());
+  }
+
 JSValue marvin(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv) {
   if(argc>0)
     Gothic::inst().setMarvinEnabled(JS_ToBool(ctx,argv[0])>0);
@@ -936,6 +950,7 @@ void game::installDebug(JSContext* ctx) {
   js::fn(ctx,dbg,"setLock",   setLock,2);
   js::fn(ctx,dbg,"god",       god,1);
   js::fn(ctx,dbg,"marvin",    marvin,1);
+  js::fn(ctx,dbg,"rain",      rain,1);
   JS_SetPropertyStr(ctx,global,"debug",dbg);
   JS_FreeValue(ctx,global);
   }

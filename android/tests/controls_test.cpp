@@ -668,6 +668,8 @@ void settingsRows() {
   CHECK(!hasSpecial(c,Special::FirstSetting+SettingSpeed));
   CHECK(hasSpecial(c,Special::FirstSetting+SettingStrafe));
   CHECK(hasSpecial(c,Special::FirstSetting+SettingAutoLock));
+  CHECK(hasSpecial(c,Special::FirstSetting+SettingPadStyle));
+  CHECK(hasSpecial(c,Special::FirstSetting+SettingRain));
   CHECK(hasSpecial(c,Special::EditHud));
 
   c.features(true,true);

@@ -318,8 +318,12 @@ bool DialogMenu::hasContent() const {
   return (current.time>0 || choice.size()>0);
   }
 
-bool DialogMenu::onStart(Npc &p, Npc &ot) {
-  choice         = ot.dialogChoices(p,except,state==State::PreStart);
+bool DialogMenu::onStart(Npc &p, Npc &ot, bool important) {
+  choice         = ot.dialogChoices(p,except,important || state==State::PreStart);
+  // DIAGNOSTICS: the talk that starts again and again (Ramirez): who, at which step, what the list of the choices holds
+  Tempest::Log::d("[talk] the dialog with ",ot.displayName()," (",ot.instanceSymbol(),") ",state==State::PreStart ? "starts" : "goes on",
+                  ", choices ",choice.size(),", important ",choice.size()>0 && choice[0].title.empty() ? 1 : 0,
+                  ", executed important ",except.size());
   state          = State::Active;
   depth          = 0;
   curentIsPl     = true;
@@ -398,7 +402,9 @@ void DialogMenu::onDoneText() {
 #endif
   if(choice.size()==0){
     if(depth>0) {
-      onStart(*pl,*other);
+      // The important infos go one after another before the choices (as in the original): the next valid one is not skipped, or
+      // it stays valid forever and the character starts the talk again and again (Ramirez: Hallo, then Beute)
+      onStart(*pl,*other,selected.title.empty());
       } else if(!haveToWaitQueues()) {
       close();
       }
@@ -408,6 +414,8 @@ void DialogMenu::onDoneText() {
 void DialogMenu::close() {
   auto prevPl  = pl;
   auto prevNpc = other;
+  if(prevNpc!=nullptr)
+    Tempest::Log::d("[talk] the dialog with ",prevNpc->displayName()," (",prevNpc->instanceSymbol(),") is closed");
 
   if(pl!=nullptr)
     pl->world().script().dmaDialogChoice(nullptr,false,-1);

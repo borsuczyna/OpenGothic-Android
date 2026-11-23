@@ -4,7 +4,10 @@
 #include <Tempest/Except>
 #include <Tempest/Platform>
 
+#include <algorithm>
 #include <iostream>
+#include <cstdint>
+#include <cstdio>
 #include <cstring>
 #include <csignal>
 #include <fstream>
@@ -290,6 +293,9 @@ void CrashLog::writeSysInfo(std::ostream &fout) {
   const std::string mem = memoryInfo();
   if(!mem.empty())
     fout << "memory: " << mem << std::endl;
+  const std::string maps = mappingsSummary(12);
+  if(!maps.empty())
+    fout << maps << std::endl;
   }
 
 std::string CrashLog::memoryInfo() {
@@ -329,4 +335,112 @@ std::string CrashLog::memoryInfo() {
   }
 #endif
   return ret;
+  }
+
+#if defined(__ANDROID__) || defined(__linux__)
+namespace {
+struct MapGroup {
+  char     key[96];
+  uint64_t bytes;
+  uint32_t count;
+  };
+
+// reads the file of the mappings into the groups of the same file (name) and rights, returns the size of all mappings
+uint64_t groupMappings(const char* path, MapGroup* groups, size_t maxGroups, size_t& numGroups) {
+  static char buf[4096];
+  numGroups = 0;
+
+  std::FILE* f = std::fopen(path,"r");
+  if(f==nullptr)
+    return 0;
+  std::setvbuf(f,buf,_IOFBF,sizeof(buf));
+
+  uint64_t total = 0;
+  char     line[640];
+  while(std::fgets(line,sizeof(line),f)!=nullptr) {
+    unsigned long long a = 0, b = 0;
+    char               perms[8] = {};
+    int                pos = 0;
+    if(std::sscanf(line,"%llx-%llx %7s %*s %*s %*s %n",&a,&b,perms,&pos)<3 || b<a)
+      continue;
+
+    // the name starts after the inode: empty for the anonymous memory
+    const char* name = line+pos;
+    size_t      len  = std::strlen(name);
+    while(len>0 && (name[len-1]=='\n' || name[len-1]=='\r' || name[len-1]==' '))
+      --len;
+    if(len==0) {
+      name = "[anon]";
+      len  = std::strlen(name);
+      } else if(len>56) {
+      name += len-56;   // the end of a long path is the file
+      len   = 56;
+      }
+
+    char key[96];
+    std::snprintf(key,sizeof(key),"%.*s %s",int(len),name,perms);
+
+    const uint64_t size = uint64_t(b-a);
+    total += size;
+
+    MapGroup* g = nullptr;
+    for(size_t i=0; i<numGroups; ++i)
+      if(std::strcmp(groups[i].key,key)==0) {
+        g = &groups[i];
+        break;
+        }
+    if(g==nullptr) {
+      if(numGroups<maxGroups) {
+        g = &groups[numGroups++];
+        } else {
+        g = &groups[maxGroups-1];   // the last group takes everything that does not fit
+        std::snprintf(g->key,sizeof(g->key),"(other)");
+        }
+      if(g->count==0 && g->bytes==0)
+        std::snprintf(g->key,sizeof(g->key),"%s",key);
+      }
+    g->bytes += size;
+    g->count += 1;
+    }
+  std::fclose(f);
+  return total;
+  }
+}
+#endif
+
+std::string CrashLog::mappingsSummary(size_t top, double minTotalGb) {
+#if defined(__ANDROID__) || defined(__linux__)
+  constexpr size_t maxGroups = 96;
+  static MapGroup  groups[maxGroups];
+  std::memset(groups,0,sizeof(groups));
+
+  size_t         num   = 0;
+  const uint64_t total = groupMappings("/proc/self/maps",groups,maxGroups,num);
+  const double   gb    = double(total)/(1024.0*1024.0*1024.0);
+  if(num==0 || gb<minTotalGb)
+    return std::string();
+
+  std::sort(groups,groups+num,[](const MapGroup& l, const MapGroup& r){ return l.bytes>r.bytes; });
+
+  try {
+    char head[96];
+    std::snprintf(head,sizeof(head),"mappings: %.1f GB in %zu groups: ",gb,num);
+    std::string ret = head;
+    for(size_t i=0; i<num && i<top; ++i) {
+      char item[160];
+      std::snprintf(item,sizeof(item),"%s%s %.2f GB x%u",i==0 ? "" : " | ",groups[i].key,
+                    double(groups[i].bytes)/(1024.0*1024.0*1024.0),unsigned(groups[i].count));
+      ret += item;
+      }
+    return ret;
+    }
+  catch(...) {
+    // no memory even for the text
+    return std::string();
+    }
+#else
+  (void)top;
+  (void)minTotalGb;
+  return std::string();
+#endif
   }

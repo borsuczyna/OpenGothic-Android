@@ -469,6 +469,15 @@ const Animation::Sequence* AnimationSolver::solveAnim(std::string_view scheme, b
   if(auto sq = solveFrm(name))
     return sq;
 
+  if(!invest) {
+    // A spell that is cast at once (Spell_ProcessMana returns SPL_SENDCAST) of a scheme that has no T_MAGRUN_2_<X>SHOOT, only T_<X>CAST_2_<X>SHOOT:
+    // FIB (the small firestorm, destroy undead, breath of death) and WND (the big lightning). Without it the pose S_<X>SHOOT is taken from nothing:
+    // the character freezes with the arms out. The aliases of FBT point to this very animation (T_MAGRUN_2_FBTSHOOT -> T_FIBCAST_2_FIBSHOOT).
+    name = string_frm("T_",scheme,"CAST_2_",scheme,"SHOOT");
+    if(auto sq = solveFrm(name))
+      return sq;
+    }
+
   name = string_frm("S_",scheme,"SHOOT");
   return solveFrm(name);
   }

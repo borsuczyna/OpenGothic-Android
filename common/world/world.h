@@ -28,6 +28,7 @@ class ParticleFx;
 class Interactive;
 class VersionInfo;
 class GlobalFx;
+class RainFx;
 class Vob;
 
 class World final {
@@ -130,6 +131,10 @@ class World final {
     void                 scaleTime(uint64_t& dt);
     void                 tick(uint64_t dt);
     uint64_t             tickCount() const;
+    /// the weather: the rain of the outdoor worlds (the setting of the player can switch it off)
+    bool                 isRaining() const;
+    /// Marvin (zstartrain, zstoprain): 1 the rain is on, 0 the rain is off, -1 the weather of the day
+    void                 forceRain(int mode);
     void                 setDayTime(int32_t h,int32_t min);
     gtime                time() const;
 
@@ -241,6 +246,7 @@ class World final {
     WorldSound                            wsound;
     WorldObjects                          wobj;
     std::unique_ptr<Npc>                  lvlInspector;
+    std::unique_ptr<RainFx>               rain;           // after wview: its particles are in the view of the world
 
     auto         roomAt(const zenkit::BspNode &node) -> std::string_view;
     auto         portalAt(std::string_view tag) -> BspSector*;

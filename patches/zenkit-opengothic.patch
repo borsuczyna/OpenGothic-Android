@@ -70,10 +70,10 @@ index e572dbd..bc712a3 100644
  
  		bool current_state_valid;
 diff --git a/include/zenkit/vobs/VirtualObject.hh b/include/zenkit/vobs/VirtualObject.hh
-index 325bed2..74d0ec8 100644
+index 325bed2..5dd32e1 100644
 --- a/include/zenkit/vobs/VirtualObject.hh
 +++ b/include/zenkit/vobs/VirtualObject.hh
-@@ -242,6 +242,17 @@ namespace zenkit {
+@@ -242,6 +242,27 @@ namespace zenkit {
  		ZKAPI void save(WriteArchive& w, GameVersion version) const override;
  	};
  
@@ -85,6 +85,16 @@ index 325bed2..74d0ec8 100644
 +		std::shared_ptr<Object> arrow;
 +		std::shared_ptr<Object> owner;
 +
++		/// The arrows are parsed only inside of SaveGame::load_world, where the original game writes them. In the other archives (the worlds
++		/// of the game and of the mods) the object is skipped like an unknown one: its layout there is not known, and a wrong guess ends the load.
++		struct Scope {
++			ZKAPI Scope();
++			ZKAPI ~Scope();
++			Scope(Scope const&) = delete;
++			Scope& operator=(Scope const&) = delete;
++		};
++		ZKAPI static bool parsing();
++
 +		ZKAPI void load(ReadArchive& r, GameVersion version) override;
 +	};
 +
@@ -92,7 +102,7 @@ index 325bed2..74d0ec8 100644
  		UNKNOWN = -1,
  		zCVob = 0,           ///< The base type for all VObs.
 diff --git a/src/Archive.cc b/src/Archive.cc
-index 8797a87..50b4ecd 100644
+index 8797a87..9df9ab4 100644
 --- a/src/Archive.cc
 +++ b/src/Archive.cc
 @@ -82,6 +82,7 @@ namespace zenkit {
@@ -103,12 +113,15 @@ index 8797a87..50b4ecd 100644
  	    {"oCCSPlayer:zCCSPlayer", ObjectType::oCCSPlayer},
  	    {"zCSkyControler_Outdoor", ObjectType::zCSkyControler_Outdoor},
  	    {"zCWayNet", ObjectType::zCWayNet},
-@@ -318,6 +319,9 @@ namespace zenkit {
+@@ -318,6 +319,12 @@ namespace zenkit {
  		case ObjectType::oCAIHuman:
  			syn = std::make_shared<AiHuman>();
  			break;
 +		case ObjectType::oCAIArrow:
-+			syn = std::make_shared<AiArrow>();
++			// outside of a save game the layout is not known: skipped, as an unknown object
++			if (AiArrow::parsing()) {
++				syn = std::make_shared<AiArrow>();
++			}
 +			break;
  		case ObjectType::oCAIVobMove:
  			syn = std::make_shared<AiMove>();
@@ -281,7 +294,7 @@ index 0b4420e..ee4d7f4 100644
  	}
  
 diff --git a/src/SaveGame.cc b/src/SaveGame.cc
-index 7327e5a..f6de9b1 100644
+index 7327e5a..84cd37b 100644
 --- a/src/SaveGame.cc
 +++ b/src/SaveGame.cc
 @@ -161,6 +161,9 @@ namespace zenkit {
@@ -294,6 +307,14 @@ index 7327e5a..f6de9b1 100644
  
  		for (auto& guild_attitude : this->guild_attitudes) {
  			for (unsigned char& j : guild_attitude) {
+@@ -264,6 +267,7 @@ namespace zenkit {
+ 	}
+ 
+ 	std::shared_ptr<World> SaveGame::load_world(std::string_view world_name) const {
++		AiArrow::Scope arrows;
+ 		auto path = _m_path / world_name;
+ 		path.replace_extension("SAV");
+ 
 diff --git a/src/vobs/Misc.cc b/src/vobs/Misc.cc
 index c711191..bc3bf0b 100644
 --- a/src/vobs/Misc.cc
@@ -330,13 +351,27 @@ index c711191..bc3bf0b 100644
  		}
  
 diff --git a/src/vobs/VirtualObject.cc b/src/vobs/VirtualObject.cc
-index 6c23fd2..2b3110b 100644
+index 6c23fd2..1ab41d6 100644
 --- a/src/vobs/VirtualObject.cc
 +++ b/src/vobs/VirtualObject.cc
-@@ -391,6 +391,13 @@ namespace zenkit {
+@@ -391,6 +391,27 @@ namespace zenkit {
  		w.write_int("actionMode", this->action_mode);
  	}
  
++	static thread_local int g_arrow_scope = 0;
++
++	AiArrow::Scope::Scope() {
++		++g_arrow_scope;
++	}
++
++	AiArrow::Scope::~Scope() {
++		--g_arrow_scope;
++	}
++
++	bool AiArrow::parsing() {
++		return g_arrow_scope > 0;
++	}
++
 +	void AiArrow::load(ReadArchive& r, GameVersion version) {
 +		vob = r.read_object(version);
 +		(void) r.read_raw(6); // flight time and state of the arrow

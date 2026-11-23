@@ -508,6 +508,18 @@ void Inventory::updateArmorView(Npc& owner) {
     owner.updateArmor();
   }
 
+/// The visual effect of an equipped weapon (the item field effect: SPELLFX_BOW of the magic bow, SPELLFX_FIREBOW, SPELLFX_CROSSBOW,
+/// the glow of the magic staffs). Its particles come from the whole mesh of the weapon (the shape MESH of the particle effect).
+static Effect weaponEffect(Npc& owner, const Item& itm) {
+  const auto& name = itm.handle().effect;
+  if(name.empty())
+    return Effect();
+  const VisualFx* vfx = Gothic::inst().loadVisualFx(name);
+  if(vfx==nullptr)
+    return Effect();
+  return Effect(*vfx,owner.world(),owner,SpellFxKey::Count);
+  }
+
 void Inventory::updateSwordView(Npc &owner) {
   if(melee==nullptr) {
     owner.setSword(MeshObjects::Mesh());
@@ -515,7 +527,7 @@ void Inventory::updateSwordView(Npc &owner) {
     }
 
   auto  vbody  = owner.world().addView(melee->handle());
-  owner.setSword(std::move(vbody));
+  owner.setSword(std::move(vbody),weaponEffect(owner,*melee));
   }
 
 void Inventory::updateBowView(Npc &owner) {
@@ -527,7 +539,7 @@ void Inventory::updateBowView(Npc &owner) {
   auto flag = range->mainFlag();
   if(flag & ITM_CAT_FF){
     auto  vbody  = owner.world().addView(range->handle());
-    owner.setRangedWeapon(std::move(vbody));
+    owner.setRangedWeapon(std::move(vbody),weaponEffect(owner,*range));
     }
   }
 

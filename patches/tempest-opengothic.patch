@@ -18,6 +18,29 @@ index 2a75ab62..20183fd3 100644
      lint {
          disable 'ChromeOsAbiSupport'
      }
+diff --git a/Engine/gapi/rectallocator.h b/Engine/gapi/rectallocator.h
+index 7b3c95f1..320eca25 100644
+--- a/Engine/gapi/rectallocator.h
++++ b/Engine/gapi/rectallocator.h
+@@ -169,15 +169,15 @@ class RectAllocator {
+         if(nx->refcount.fetch_sub(1,std::memory_order_acq_rel)!=1)
+           return;
+ 
++        // the root of a page has no owner: when the whole page is released there is nothing to detach it from
+         Node* ow=nx->owner;
+-        while(true) {
++        while(ow!=nullptr) {
+           ow->remove(nx);
+           nx=ow;
+-          if(nx==nullptr || nx->hasLeafs())
++          if(nx->hasLeafs())
+             return;
+           ow = nx->owner;
+           }
+-        delete this;
+         }
+ 
+       Point pos() const { return Point(x,y); }
 diff --git a/Engine/gapi/shader.cpp b/Engine/gapi/shader.cpp
 index a8a935b6..9a0b5dce 100644
 --- a/Engine/gapi/shader.cpp

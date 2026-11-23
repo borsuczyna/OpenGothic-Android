@@ -42,6 +42,19 @@ class WorldView {
         }
     }
 
+    // --- the weather
+    weather(ui) {
+        ui.spacing();
+        ui.separator();
+        ui.withColor(Gold, () => ui.text("Weather"));
+        ui.textDisabled(this.env.debug.rain() ? "it is raining" : "it is dry");
+        if (ui.button("Rain on")) { this.env.debug.rain(1); this.say("the rain is on (the setting Rain of the options must not be OFF)"); }
+        ui.sameLine();
+        if (ui.button("Rain off")) { this.env.debug.rain(0); this.say("the rain is off"); }
+        ui.sameLine();
+        if (ui.button("Weather of the day")) { this.env.debug.rain(-1); this.say("the weather of the day"); }
+    }
+
     // --- teleport
     teleport(ui) {
         ui.spacing();
@@ -151,6 +164,7 @@ class WorldView {
 
     draw(ui) {
         this.time(ui);
+        this.weather(ui);
         this.teleport(ui);
         this.triggerList(ui);
         this.make(ui);

@@ -171,12 +171,39 @@ void MdlVisual::setSlotAttachment(MeshObjects::Mesh&& itm, std::string_view bone
   attach.push_back(std::move(slt));
   }
 
-void MdlVisual::setSword(MeshObjects::Mesh &&s) {
+void MdlVisual::setSword(MeshObjects::Mesh &&s, Effect&& fx) {
   bind(sword,std::move(s),"ZS_RIGHTHAND");
+  setWeaponEffect(swordFx,std::move(fx),sword);
   }
 
-void MdlVisual::setRangedWeapon(MeshObjects::Mesh &&b) {
+void MdlVisual::setRangedWeapon(MeshObjects::Mesh &&b, Effect&& fx) {
   bind(bow,std::move(b),"ZS_BOW");
+  setWeaponEffect(bowFx,std::move(fx),bow);
+  }
+
+/// The effect of an item (SPELLFX_BOW of the magic bow): the old one stops with its destructor, the new one is placed by syncAttaches
+void MdlVisual::setWeaponEffect(Effect& dst, Effect&& fx, const MeshAttach& weapon) {
+  dst = std::move(fx);
+  if(dst.handle()==nullptr)
+    return;
+  if(weapon.view.isEmpty()) {
+    dst = Effect();
+    return;
+    }
+  dst.setObjectMesh(&weapon.view);
+  dst.setActive(true);
+  dst.setLooped(true);
+  dst.setPhysicsDisable();
+  }
+
+void MdlVisual::syncWeaponEffect(const MeshAttach& weapon, Effect& fx) {
+  if(fx.handle()==nullptr)
+    return;
+  auto& pose = *skInst;
+  auto  p    = pos;
+  if(weapon.boneId<pose.boneCount())
+    p = pose.bone(weapon.boneId);
+  fx.setObjMatrix(p);
   }
 
 void MdlVisual::setShield(MeshObjects::Mesh&& s) {
@@ -991,6 +1018,8 @@ void MdlVisual::syncAttaches() {
     i.view.setObjMatrix(pos);
     // i.view.setTarget(targetPos);
     }
+  syncWeaponEffect(sword,swordFx);
+  syncWeaponEffect(bow,bowFx);
   pfx.view.setObjMatrix(pos);
   hnpcVisual.view.setObjMatrix(pos);
   if(torch.view!=nullptr) {
