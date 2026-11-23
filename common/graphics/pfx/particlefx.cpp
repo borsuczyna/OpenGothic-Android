@@ -141,7 +141,7 @@ ParticleFx::ParticleFx(const ParticleFx& proto, const VisualFx::Key& key)
     lspPartAvg        = key.pfx_lspPartAvg;
 
   if(key.pfx_visAlphaStart>0)
-    visAlphaStart     = key.pfx_visAlphaStart;
+    visAlphaStart     = key.pfx_visAlphaStart/255.f; // the scripts use the range 0..255, as vis_alpha_start
   }
 
 bool ParticleFx::isDecal() const {

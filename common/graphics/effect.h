@@ -60,6 +60,9 @@ class Effect final {
     void               setupPfx(World& owner);
     void               setupSfx(World& owner);
     void               setupCollision(World& owner);
+    void               beginFlight();
+    Tempest::Vec3      flightGoal() const;
+    Tempest::Vec3      flightPosition() const;
 
     const VisualFx::Key*  key  = nullptr;
     const VisualFx*       root = nullptr;
@@ -90,6 +93,14 @@ class Effect final {
     bool                  active    = false;
     bool                  looped    = false;
     bool                  noPhysics = false;
+
+    // The spell without a projectile (Whirlwind, Swarm) flies from the hand of the caster to the target
+    bool                  flight       = false;
+    bool                  flightEnded  = false;
+    Tempest::Vec3         flightFrom;
+    float                 flightPassed = 0;
+    uint64_t              flightTimeMs = 0;
+    const ParticleFx*     flightFx     = nullptr;
 
     std::unique_ptr<Effect> next;
   };
