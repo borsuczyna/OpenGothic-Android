@@ -136,7 +136,7 @@ class DialogMenu : public Tempest::Widget {
       int            y=-1;
       };
 
-    bool onStart(Npc& pl,Npc& other);
+    bool onStart(Npc& pl,Npc& other,bool important=false);
     void onEntry(const GameScript::DlgChoice& e);
     void onDoneText();
     void close();
