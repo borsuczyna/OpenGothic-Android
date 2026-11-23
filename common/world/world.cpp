@@ -13,6 +13,7 @@
 #include "graphics/mesh/submesh/packedmesh.h"
 #include "graphics/visualfx.h"
 #include "world/objects/globalfx.h"
+#include "world/rainfx.h"
 #include "world/objects/npc.h"
 #include "world/objects/item.h"
 #include "world/objects/interactive.h"
@@ -420,6 +421,23 @@ void World::tick(uint64_t dt) {
   if(auto pl = player())
     wsound.tick(*pl);
   globFx->tick(dt);
+  if(wview!=nullptr) {
+    if(rain==nullptr)
+      rain.reset(new RainFx(*this));
+    rain->tick(dt);
+    wview->setOvercast(rain->overcast());
+    }
+  }
+
+bool World::isRaining() const {
+  return rain!=nullptr && rain->isRaining();
+  }
+
+void World::forceRain(int mode) {
+  if(rain==nullptr && wview!=nullptr)
+    rain.reset(new RainFx(*this));
+  if(rain!=nullptr)
+    rain->force(mode);
   }
 
 uint64_t World::tickCount() const {
