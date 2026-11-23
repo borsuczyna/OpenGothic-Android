@@ -1069,6 +1069,20 @@ void GameScript::saveSym(Serialize &fout, zenkit::DaedalusSymbol& i) {
   fout.write(uint32_t(zenkit::DaedalusDataType::VOID));
   }
 
+/// The collision of a static object (a pillar, a beam) is a hollow triangle mesh: the npc inside of it does not touch any triangle.
+/// The rays ignore the back faces, so the rays from the outside, towards the point, hit the surface only if the point is inside of a solid object.
+static bool isInsideSolid(const DynamicWorld& dyn, const Vec3& p) {
+  const float range = 120;
+  int         hit   = 0;
+  for(int i=0; i<8; ++i) {
+    const float a = float(i)*float(M_PI)/4.f;
+    const auto  s = p+Vec3(std::cos(a)*range, 100, std::sin(a)*range);
+    if(dyn.ray(s, p+Vec3(0,100,0)).hasCol)
+      ++hit;
+    }
+  return hit>=7;
+  }
+
 void GameScript::fixNpcPosition(Npc& npc, float angle0, float distBias) {
   auto& dyn  = *world().physic();
   auto  pos0 = npc.position();
@@ -1091,6 +1105,8 @@ void GameScript::fixNpcPosition(Npc& npc, float angle0, float distBias) {
       if(!ray.hasCol)
         continue;
       p.y = ray.v.y;
+      if(isInsideSolid(dyn,p))
+        continue; // two npc at the same way-point: the shifted one ended up inside of a pillar (Oric, OC hall)
       npc.setPosition(p);
       if(!npc.hasCollision()) {
         npc.updateTransform();
