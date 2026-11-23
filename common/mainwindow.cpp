@@ -930,6 +930,9 @@ void MainWindow::drawTouchBars(Painter& p, Npc& pl) {
     }
   if(mode!=Mobile::Mode::Game)
     return;
+  // the bars go with the controls: no stick and no hotbar in a cutscene, on a pause, when the player is down, in the settings
+  if(androidControls.settingsVisible() || !(androidControls.movementAvailable() || androidControls.editingHud()))
+    return;
 
   // above the hotbar of the controls, same units as the model
   // the hotbar follows the size of the buttons (settings), so do the bars over it
