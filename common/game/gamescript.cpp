@@ -1095,26 +1095,37 @@ void GameScript::fixNpcPosition(Npc& npc, float angle0, float distBias) {
       }
     }
 
-  for(int r = 0; r<=800; r+=20) {
-    for(int ang = 0; ang<360; ang+=30) {
-      float a = float((float(ang)+angle0)*M_PI/180.0);
-      float d = float(r)+distBias;
-      auto  p = pos0+Vec3(std::cos(a)*d, 0, std::sin(a)*d);
+  // The ground under the point: a way-point stays a bit over the floor, so the ray of a shifted point, started 100 over the way-point,
+  // can land on the top of a cupboard or of a table (Hilda in the farm house stood on the cupboard and could not go to her bed).
+  float ground0 = pos0.y;
+  if(auto g = dyn.ray(pos0+Vec3(0,100,0), pos0+Vec3(0,-1000,0)); g.hasCol)
+    ground0 = g.v.y;
 
-      auto ray = dyn.ray(p+Vec3(0,100,0), p+Vec3(0,-1000,0));
-      if(!ray.hasCol)
-        continue;
-      p.y = ray.v.y;
-      if(isInsideSolid(dyn,p))
-        continue; // two npc at the same way-point: the shifted one ended up inside of a pillar (Oric, OC hall)
-      npc.setPosition(p);
-      if(!npc.hasCollision()) {
-        npc.updateTransform();
-        return;
-        }
-      if(d==0) {
-        // no need to loop multiple angles, with R of zero
-        break;
+  // the first pass stays on the level of the point, the second one takes any ground
+  for(int pass = 0; pass<2; ++pass) {
+    for(int r = 0; r<=800; r+=20) {
+      for(int ang = 0; ang<360; ang+=30) {
+        float a = float((float(ang)+angle0)*M_PI/180.0);
+        float d = float(r)+distBias;
+        auto  p = pos0+Vec3(std::cos(a)*d, 0, std::sin(a)*d);
+
+        auto ray = dyn.ray(p+Vec3(0,100,0), p+Vec3(0,-1000,0));
+        if(!ray.hasCol)
+          continue;
+        p.y = ray.v.y;
+        if(pass==0 && std::abs(p.y-ground0)>60.f)
+          continue;
+        if(isInsideSolid(dyn,p))
+          continue; // two npc at the same way-point: the shifted one ended up inside of a pillar (Oric, OC hall)
+        npc.setPosition(p);
+        if(!npc.hasCollision()) {
+          npc.updateTransform();
+          return;
+          }
+        if(d==0) {
+          // no need to loop multiple angles, with R of zero
+          break;
+          }
         }
       }
     }
